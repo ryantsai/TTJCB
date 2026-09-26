@@ -1,0 +1,11 @@
+# Movement reference request
+
+Tool: built-in ImageGen.
+Status: rejected by the image tool safety system at output moderation (`other`). No generated image was returned, and no CLI fallback was used.
+Reference: `build/qa/poses-right.png`.
+
+## Submitted prompt
+
+Use case: stylized-concept. Asset type: animation art-direction sheet for a Teen Titans Go! side-scrolling beat-em-up built in Rive. Image 1 is the existing gameplay pose sheet, a reference for the five identities, colors, heavy clean outlines, and strict RIGHT-FACING side view. Create an improved animation key-pose sheet, retaining these five heroes but replacing the stiff upright poses with appealing action silhouettes. Flat cel animation, crisp vector-like shapes, no 3D. Wide landscape sheet on muted dark-purple background. Exactly five labeled horizontal rows: ROBIN, CYBORG, STARFIRE, RAVEN, BEAST BOY. Exactly six columns labeled READY, RUN CONTACT, RUN PASSING, WIND-UP, STRIKE, RECOVER. All characters face RIGHT in EVERY frame, nose and eyes toward screen right, no frontal faces. Robin: athletic low forward guard, counter-swinging arms and legs, punch pulled back then snapped forward, cape lagging behind. Cyborg: broad heavy planted feet, bent knees, weight and shoulder rotation in powerful punch. Starfire: graceful hovering travel with bent trailing legs and flowing hair, gather energy then thrust glowing green hand forward. Raven: deliberate gliding, cloak trailing behind, compact purple spell anticipation then forward palm thrust. Beast Boy: low nimble crouched run and playful powerful forward punch, recognizable green pointed ear. Maintain consistent anatomy, head size, costume and scale within each row. Use clear arcs, bent elbows and knees, anticipation, body compression, weight transfer and follow-through; grounded heroes show clear foot contact, airborne heroes float. No motion blur or smear, no extra limbs, no weapons, no changed costumes. Keep entire figures inside evenly spaced cells; render as a polished practical animator's reference. This is a concept guide for improving the existing vector animations, not a screenshot of the finished game.
+
+The subsequent animation changes were reviewed using actual Rive renders, not an ImageGen output.

@@ -1,0 +1,1996 @@
+-- TEEN TITANS: JUMP CITY BRAWL
+-- An unofficial fan-made 2D belt-scrolling beat-'em-up for 1-4 players.
+--
+-- Controls (standard gamepad layout)
+--   Left stick / d-pad  move            A (south)   jump / confirm
+--   X (west)            attack combo    Y (north), B (east), RB, RT  special
+--   Start               join / pause    Back / View  quit (while paused)
+-- Keyboard players
+--   Keys 1: WASD move, J attack, K / Space jump, L special, Enter start, Esc back
+--   Keys 2: arrows move, ',' attack, '.' jump, '/' special, Right Shift start,
+--           (numpad 1 / 2 / 3 and numpad Enter also work)
+
+local G = require('gfx')
+local A = require('art')
+local Motion = require('motion')
+
+local W = G.W
+local H = G.H
+local FMIN = 478 -- nearest the shop fronts a fighter can stand
+local FMAX = 698 -- nearest the camera
+local GRAV = 1900
+local SPECIAL_COST = 30
+local HERO_SCALE = 1.2
+local START_CHECKPOINT = 1 -- raise to test later waves
+
+-- Data -------------------------------------------------------------------------
+
+type Hero = {
+    key: string,
+    name: string,
+    hp: number,
+    speed: number,
+    power: number,
+    jump: number,
+    float: number,
+    color: Color,
+    shout: string,
+    special: string,
+}
+
+local HEROES: { Hero } = {
+    {
+        key = 'robin', name = 'ROBIN', hp = 110, speed = 255, power = 1.0, jump = 640, float = 1,
+        color = G.hex(0xD7263D), shout = 'BIRDARANG!', special = 'BIRDARANG',
+    },
+    {
+        key = 'cyborg', name = 'CYBORG', hp = 140, speed = 210, power = 1.25, jump = 590, float = 1,
+        color = G.hex(0x2F6FD6), shout = 'BOOYAH!', special = 'SONIC CANNON',
+    },
+    {
+        key = 'starfire', name = 'STARFIRE', hp = 100, speed = 245, power = 1.05, jump = 640, float = 0.65,
+        color = G.hex(0xF4A259), shout = 'STARBOLTS!', special = 'STARBOLT VOLLEY',
+    },
+    {
+        key = 'raven', name = 'RAVEN', hp = 95, speed = 235, power = 1.1, jump = 620, float = 0.65,
+        color = G.hex(0x6A4CC9), shout = 'AZARATH METRION ZINTHOS!', special = 'DARK BURST',
+    },
+    {
+        key = 'beast', name = 'BEAST BOY', hp = 105, speed = 290, power = 0.95, jump = 690, float = 1,
+        color = G.hex(0x6DBB45), shout = 'RHINO TIME, DUDE!', special = 'RHINO CHARGE',
+    },
+}
+
+type EnemyDef = {
+    name: string,
+    hp: number,
+    speed: number,
+    scale: number,
+    radius: number,
+    reach: number,
+    dmg: number,
+    windup: number,
+    score: number,
+}
+
+local ENEMIES: { [string]: EnemyDef } = {
+    bot = { name = 'SLADE BOT', hp = 42, speed = 150, scale = 1.35, radius = 26, reach = 76, dmg = 8, windup = 0.38, score = 300 },
+    heavy = { name = 'HEAVY BOT', hp = 100, speed = 105, scale = 1.5, radius = 38, reach = 104, dmg = 15, windup = 0.55, score = 800 },
+    boss = { name = 'CINDERBLOCK', hp = 560, speed = 125, scale = 1.9, radius = 70, reach = 170, dmg = 20, windup = 0.55, score = 5000 },
+}
+
+local SLOT_COLORS: { Color } = { G.hex(0xFF4D5E), G.hex(0x3A9BFF), G.hex(0x3BD16F), G.hex(0xFFC21A) }
+local POW_WORDS = { 'POW!', 'BAM!', 'WHAM!', 'KAPOW!', 'THWACK!', 'BOOM!' }
+
+type Spawn = { kind: string, delay: number, side: number }
+type Checkpoint = { x: number, spawns: { Spawn }, pizza: boolean, boss: boolean }
+
+local function wave(list: { string }, gap: number): { Spawn }
+    local out: { Spawn } = {}
+    for i, kind in list do
+        table.insert(out, { kind = kind, delay = (i - 1) * gap, side = if i % 2 == 0 then -1 else 1 })
+    end
+    return out
+end
+
+local CHECKPOINTS: { Checkpoint } = {
+    { x = 260, spawns = wave({ 'bot', 'bot', 'bot' }, 0.8), pizza = false, boss = false },
+    { x = 1280, spawns = wave({ 'bot', 'bot', 'bot', 'heavy', 'bot' }, 0.9), pizza = false, boss = false },
+    { x = 2360, spawns = wave({ 'bot', 'heavy', 'bot', 'bot', 'bot', 'heavy' }, 0.9), pizza = true, boss = false },
+    { x = 3480, spawns = wave({ 'heavy', 'bot', 'bot', 'heavy', 'bot', 'bot', 'bot' }, 0.8), pizza = true, boss = false },
+    { x = 4700, spawns = wave({ 'boss', 'bot', 'bot', 'bot', 'bot' }, 2.2), pizza = true, boss = true },
+}
+
+-- Keyboard map: GLFW key codes to (device, button).
+type KeyBind = { dev: string, btn: string }
+local KEYS: { [number]: KeyBind } = {
+    [87] = { dev = 'kb1', btn = 'U' }, [65] = { dev = 'kb1', btn = 'L' },
+    [83] = { dev = 'kb1', btn = 'D' }, [68] = { dev = 'kb1', btn = 'R' },
+    [74] = { dev = 'kb1', btn = 'x' }, [75] = { dev = 'kb1', btn = 'a' },
+    [32] = { dev = 'kb1', btn = 'a' }, [76] = { dev = 'kb1', btn = 'y' },
+    [257] = { dev = 'kb1', btn = 'start' }, [256] = { dev = 'kb1', btn = 'cancel' },
+    [259] = { dev = 'kb1', btn = 'cancel' },
+    [265] = { dev = 'kb2', btn = 'U' }, [263] = { dev = 'kb2', btn = 'L' },
+    [264] = { dev = 'kb2', btn = 'D' }, [262] = { dev = 'kb2', btn = 'R' },
+    [44] = { dev = 'kb2', btn = 'x' }, [46] = { dev = 'kb2', btn = 'a' },
+    [47] = { dev = 'kb2', btn = 'y' }, [321] = { dev = 'kb2', btn = 'x' },
+    [322] = { dev = 'kb2', btn = 'a' }, [323] = { dev = 'kb2', btn = 'y' },
+    [344] = { dev = 'kb2', btn = 'start' }, [335] = { dev = 'kb2', btn = 'start' },
+    [345] = { dev = 'kb2', btn = 'cancel' }, [261] = { dev = 'kb2', btn = 'cancel' },
+}
+
+-- State types --------------------------------------------------------------------
+
+type Device = {
+    id: string,
+    label: string,
+    mx: number,
+    my: number,
+    held: { [string]: boolean },
+    pressed: { [string]: boolean },
+}
+
+type Fighter = {
+    id: number,
+    team: number, -- 1 Titans, 2 villains
+    kind: string,
+    hero: number, -- index into HEROES, 0 for villains
+    slot: number, -- player slot, 0 for villains
+    x: number,
+    y: number,
+    z: number,
+    vx: number,
+    vy: number,
+    vz: number,
+    facing: number,
+    hp: number,
+    maxHp: number,
+    state: string,
+    st: number,
+    combo: number,
+    queued: boolean,
+    hit: { [number]: boolean },
+    invuln: number,
+    flash: number,
+    speed: number,
+    power: number,
+    jump: number,
+    float: number,
+    scale: number,
+    radius: number,
+    reach: number,
+    dmg: number,
+    windup: number,
+    pose: A.Pose,
+    ai: number,
+    cd: number,
+    armor: number,
+    removed: boolean,
+    sp: number,
+    entering: boolean,
+    hitT: number,
+    move: number,
+}
+
+type Slot = {
+    idx: number,
+    dev: string, -- '' when free
+    hero: number,
+    locked: boolean,
+    fighter: Fighter?,
+    lives: number,
+    score: number,
+    energy: number,
+    out: boolean,
+    respawn: number,
+    color: Color,
+    denyT: number,
+}
+
+type Shot = {
+    kind: string,
+    x: number,
+    y: number,
+    z: number,
+    vx: number,
+    t: number,
+    life: number,
+    owner: Fighter,
+    dmg: number,
+    knock: boolean,
+    hit: { [number]: boolean },
+    dead: boolean,
+    back: boolean,
+}
+
+type Fx = {
+    kind: string,
+    x: number,
+    y: number,
+    z: number,
+    t: number,
+    life: number,
+    text: string,
+    color: Color,
+    size: number,
+}
+
+type Pickup = { x: number, y: number, t: number, dead: boolean }
+
+type Game = {
+    mode: string, -- title, select, play, over, win
+    modeT: number,
+    t: number,
+    devs: { [string]: Device },
+    slots: { Slot },
+    fighters: { Fighter },
+    shots: { Shot },
+    fx: { Fx },
+    pickups: { Pickup },
+    camX: number,
+    lockX: number,
+    cp: number,
+    pending: { Spawn },
+    waveT: number,
+    goT: number,
+    shake: number,
+    hitstop: number,
+    paused: boolean,
+    nextId: number,
+    continueT: number,
+    banner: string,
+    bannerSub: string,
+    bannerT: number,
+    selectT: number,
+    boss: Fighter?,
+}
+
+export type Main = {
+    g: Game,
+    size: Vector,
+}
+
+-- Helpers ------------------------------------------------------------------------
+
+local function rnd(a: number, b: number): number
+    return a + math.random() * (b - a)
+end
+
+local function sign(v: number): number
+    if v < 0 then
+        return -1
+    end
+    return 1
+end
+
+local function newSlot(i: number): Slot
+    return {
+        idx = i, dev = '', hero = i, locked = false, fighter = nil, lives = 3, score = 0,
+        energy = 0, out = false, respawn = 0, color = SLOT_COLORS[i], denyT = 0,
+    }
+end
+
+local function newGame(): Game
+    local slots: { Slot } = {}
+    for i = 1, 4 do
+        table.insert(slots, newSlot(i))
+    end
+    return {
+        mode = 'title', modeT = 0, t = 0, devs = {}, slots = slots, fighters = {}, shots = {},
+        fx = {}, pickups = {}, camX = 0, lockX = -1, cp = 1, pending = {}, waveT = 0, goT = 0,
+        shake = 0, hitstop = 0, paused = false, nextId = 1, continueT = 0, banner = '',
+        bannerSub = '', bannerT = 0, selectT = -1, boss = nil,
+    }
+end
+
+local function device(g: Game, id: string, label: string): Device
+    local d = g.devs[id]
+    if d == nil then
+        local nd: Device = { id = id, label = label, mx = 0, my = 0, held = {}, pressed = {} }
+        g.devs[id] = nd
+        -- a controller that comes back (possibly with a new id) reclaims the
+        -- player whose controller was unplugged
+        if string.sub(id, 1, 3) == 'pad' then
+            for _, s in g.slots do
+                if string.sub(s.dev, 1, 3) == 'pad' and g.devs[s.dev] == nil then
+                    s.dev = id
+                    break
+                end
+            end
+        end
+        return nd
+    end
+    return d
+end
+
+local function setButton(d: Device, name: string, down: boolean)
+    if down and not d.held[name] then
+        d.pressed[name] = true
+    end
+    d.held[name] = down
+end
+
+local function pressed(d: Device?, name: string): boolean
+    return d ~= nil and d.pressed[name] == true
+end
+
+local function slotDevice(g: Game, s: Slot): Device?
+    if s.dev == '' then
+        return nil
+    end
+    return g.devs[s.dev]
+end
+
+local function slotOf(g: Game, devId: string): Slot?
+    for _, s in g.slots do
+        if s.dev == devId then
+            return s
+        end
+    end
+    return nil
+end
+
+local function activeSlots(g: Game): number
+    local n = 0
+    for _, s in g.slots do
+        if s.dev ~= '' then
+            n += 1
+        end
+    end
+    return n
+end
+
+local function addFx(g: Game, kind: string, x: number, y: number, z: number, life: number, text: string, color: Color, size: number)
+    table.insert(g.fx, { kind = kind, x = x, y = y, z = z, t = 0, life = life, text = text, color = color, size = size })
+end
+
+local function setState(f: Fighter, s: string)
+    f.state = s
+    f.st = 0
+    f.sp = 0
+    table.clear(f.hit)
+end
+
+local function alive(f: Fighter): boolean
+    return not f.removed and f.state ~= 'ko'
+end
+
+local function canBeHit(f: Fighter): boolean
+    return alive(f) and f.invuln <= 0 and f.state ~= 'down' and f.state ~= 'getup' and f.state ~= 'enter'
+end
+
+-- Fighters -------------------------------------------------------------------------
+
+local function newFighter(g: Game, kind: string, team: number, x: number, y: number): Fighter
+    local f: Fighter = {
+        id = g.nextId, team = team, kind = kind, hero = 0, slot = 0, x = x, y = y, z = 0,
+        vx = 0, vy = 0, vz = 0, facing = 1, hp = 50, maxHp = 50, state = 'idle', st = 0,
+        combo = 0, queued = false, hit = {}, invuln = 0, flash = 0, speed = 150, power = 1,
+        jump = 600, float = 1, scale = 1, radius = 22, reach = 64, dmg = 8, windup = 0.35,
+        pose = A.newPose(), ai = rnd(0.5, 2), cd = rnd(0.6, 1.6), armor = 0, removed = false,
+        sp = 0, entering = false, hitT = 99, move = 0,
+    }
+    g.nextId += 1
+    local e = ENEMIES[kind]
+    if e then
+        local n = math.max(1, activeSlots(g))
+        local hpScale = if kind == 'boss' then 1 + 0.45 * (n - 1) else 1 + 0.15 * (n - 1)
+        f.hp = math.floor(e.hp * hpScale)
+        f.maxHp = f.hp
+        f.speed = e.speed * rnd(0.9, 1.1)
+        f.scale = e.scale
+        f.radius = e.radius
+        f.reach = e.reach
+        f.dmg = e.dmg
+        f.windup = e.windup
+    end
+    table.insert(g.fighters, f)
+    return f
+end
+
+local function spawnHero(g: Game, s: Slot, x: number, y: number)
+    local h = HEROES[s.hero]
+    local f = newFighter(g, h.key, 1, x, y)
+    f.hero = s.hero
+    f.slot = s.idx
+    f.hp = h.hp
+    f.maxHp = h.hp
+    f.speed = h.speed
+    f.power = h.power
+    f.jump = h.jump
+    f.float = h.float
+    f.scale = HERO_SCALE
+    f.radius = if h.key == 'cyborg' then 34 else 29
+    f.reach = if h.key == 'cyborg' then 96 else 86
+    f.z = 520 + s.idx * 40
+    f.invuln = 2.5
+    setState(f, 'enter')
+    s.fighter = f
+end
+
+-- Combat -----------------------------------------------------------------------------
+
+local function damage(g: Game, att: Fighter, d: Fighter, dmg: number, kbx: number, knock: boolean, launch: number)
+    dmg = math.floor(dmg + 0.5)
+    d.hp -= dmg
+    d.flash = 0.14
+    d.hitT = 0
+    local top = A.height(d.kind) * d.scale
+    addFx(g, 'spark', d.x - sign(kbx) * d.radius * 0.4, d.y + 1, d.z + top * 0.55, 0.28, '', G.hex(0xFFE14D), 1)
+    g.hitstop = math.max(g.hitstop, if knock then 0.08 else 0.045)
+
+    if att.slot > 0 then
+        local s = g.slots[att.slot]
+        s.score += dmg * 10
+        s.energy = math.min(100, s.energy + 4)
+    end
+    if d.slot > 0 then
+        local s = g.slots[d.slot]
+        s.energy = math.min(100, s.energy + 3)
+    end
+
+    if d.hp <= 0 then
+        d.hp = 0
+        knock = true
+        launch = math.max(launch, 420)
+        if d.team == 2 and att.slot > 0 then
+            local e = ENEMIES[d.kind]
+            if e then
+                g.slots[att.slot].score += e.score
+            end
+        end
+    elseif d.kind == 'boss' then
+        -- Cinderblock shrugs off hits until enough damage piles up.
+        d.armor += dmg
+        if d.armor < 70 then
+            return
+        end
+        d.armor = 0
+        knock = false
+    elseif d.kind == 'heavy' and not knock and d.state == 'eatk' then
+        return -- armoured through its own swing
+    end
+
+    if knock then
+        setState(d, 'down')
+        d.vx = kbx
+        d.vy = 0
+        d.vz = launch
+        d.z = math.max(d.z, 1)
+        d.facing = -sign(kbx)
+        g.shake = math.max(g.shake, 0.18)
+        addFx(g, 'word', d.x, d.y, d.z + top + 10, 0.7, POW_WORDS[math.random(1, #POW_WORDS)], G.hex(0xFFE14D), 30)
+    else
+        setState(d, 'hurt')
+        d.vx = kbx * 0.5
+        d.vy = 0
+    end
+end
+
+-- Hit every opponent inside a box in front of the attacker, once per swing.
+local function sweep(g: Game, att: Fighter, reach: number, depth: number, zr: number, dmg: number, kb: number, knock: boolean, launch: number): boolean
+    local any = false
+    for _, d in g.fighters do
+        if d.team ~= att.team and not att.hit[d.id] and canBeHit(d) then
+            local dx = (d.x - att.x) * att.facing
+            local dy = math.abs(d.y - att.y)
+            local dz = math.abs(d.z - att.z)
+            if dx > -d.radius * 0.6 and dx < reach + d.radius and dy < depth + d.radius * 0.35 and dz < zr + d.radius then
+                att.hit[d.id] = true
+                damage(g, att, d, dmg, kb * att.facing, knock, launch)
+                any = true
+            end
+        end
+    end
+    return any
+end
+
+local function startAttack(f: Fighter, combo: number)
+    setState(f, 'attack')
+    f.combo = combo
+    f.queued = false
+    f.vx = f.facing * 60
+    f.vy = 0
+end
+
+local function attackTiming(combo: number): (number, number, number)
+    -- duration, active start, active end
+    if combo == 3 then
+        return 0.42, 0.12, 0.24
+    end
+    return 0.28, 0.06, 0.15
+end
+
+local function startSpecial(g: Game, f: Fighter, s: Slot)
+    s.energy -= SPECIAL_COST
+    setState(f, 'special')
+    f.vx = 0
+    f.vy = 0
+    f.invuln = math.max(f.invuln, 0.4)
+    local h = HEROES[f.hero]
+    addFx(g, 'word', f.x, f.y, A.height(f.kind) * f.scale + 40, 1.1, h.shout, h.color, if #h.shout > 14 then 20 else 28)
+end
+
+local function fireShot(g: Game, f: Fighter, kind: string, speed: number, dmg: number, knock: boolean, life: number)
+    local ox, oy = A.projectileOrigin(f.kind, f.pose)
+    local shot: Shot = {
+        kind = kind, x = f.x + f.facing * ox * f.scale, y = f.y, z = f.z - oy * f.scale, vx = speed * f.facing, t = 0,
+        life = life, owner = f, dmg = dmg, knock = knock, hit = {}, dead = false, back = false,
+    }
+    table.insert(g.shots, shot)
+end
+
+local function updateSpecial(g: Game, f: Fighter, dt: number, dev: Device?)
+    local key = f.kind
+    local st = f.st
+    local done = 0.5
+    if key == 'robin' then
+        done = 0.36
+        if f.sp == 0 and st >= 0.12 then
+            f.sp = 1
+            fireShot(g, f, 'bird', 780, 16 * f.power, false, 1.8)
+        end
+    elseif key == 'cyborg' then
+        done = 0.95
+        local ticks = { 0.3, 0.45, 0.6, 0.75 }
+        while f.sp < #ticks and st >= ticks[f.sp + 1] do
+            f.sp += 1
+            table.clear(f.hit)
+            local last = f.sp == #ticks
+            sweep(g, f, 1150, 30, 70, 8 * f.power, if last then 320 else 60, last, 340)
+            g.shake = math.max(g.shake, 0.08)
+        end
+    elseif key == 'starfire' then
+        done = 0.5
+        local times = { 0.1, 0.22, 0.34 }
+        while f.sp < #times and st >= times[f.sp + 1] do
+            f.sp += 1
+            fireShot(g, f, 'bolt', 840, 11 * f.power, f.sp == #times, 1.3)
+        end
+    elseif key == 'raven' then
+        done = 0.85
+        if f.sp == 0 and st >= 0.35 then
+            f.sp = 1
+            addFx(g, 'dark', f.x, f.y, 0, 0.75, '', G.WHITE, 1)
+            g.shake = math.max(g.shake, 0.3)
+            for _, d in g.fighters do
+                if d.team ~= f.team and canBeHit(d) then
+                    local dx = (d.x - f.x) / (250 + d.radius)
+                    local dy = (d.y - f.y) / (105 + d.radius * 0.3)
+                    if dx * dx + dy * dy < 1 then
+                        damage(g, f, d, 24 * f.power, 280 * sign(d.x - f.x), true, 440)
+                    end
+                end
+            end
+        end
+    elseif key == 'beast' then
+        done = 0.8
+        f.invuln = math.max(f.invuln, 0.1)
+        if st > 0.08 then
+            f.vx = f.facing * 660
+            f.vy = if dev then dev.my * 140 else 0
+            if sweep(g, f, 100, 34, 90, 18 * f.power, 400, true, 400) then
+                g.shake = math.max(g.shake, 0.15)
+            end
+            if math.floor(st * 20) ~= math.floor((st - dt) * 20) then
+                addFx(g, 'dust', f.x - f.facing * 40, f.y, 0, 0.4, '', G.WHITE, 1)
+            end
+        end
+    end
+    if st >= done then
+        f.vx = 0
+        f.vy = 0
+        setState(f, 'idle')
+    end
+end
+
+-- Players ------------------------------------------------------------------------------
+
+local function updatePlayer(g: Game, s: Slot, f: Fighter, dt: number)
+    local dev = slotDevice(g, s)
+    local mx = if dev then dev.mx else 0
+    local my = if dev then dev.my else 0
+    local state = f.state
+
+    s.energy = math.min(100, s.energy + dt * 4)
+
+    if state == 'idle' or state == 'walk' then
+        f.vx = mx * f.speed
+        f.vy = my * f.speed * 0.62
+        if math.abs(mx) > 0.2 then
+            f.facing = sign(mx)
+        end
+        local moving = math.abs(mx) > 0.1 or math.abs(my) > 0.1
+        if moving ~= (state == 'walk') then
+            f.state = if moving then 'walk' else 'idle'
+        end
+        if pressed(dev, 'a') then
+            setState(f, 'air')
+            f.vz = f.jump
+            f.z = 1
+            addFx(g, 'dust', f.x, f.y, 0, 0.35, '', G.WHITE, 1)
+        elseif pressed(dev, 'x') then
+            startAttack(f, 1)
+        elseif pressed(dev, 'y') or pressed(dev, 'b') then
+            if s.energy >= SPECIAL_COST then
+                startSpecial(g, f, s)
+            else
+                s.denyT = 0.5
+            end
+        end
+    elseif state == 'air' or state == 'jumpatk' then
+        f.vx = mx * f.speed * 0.85
+        f.vy = my * f.speed * 0.4
+        if math.abs(mx) > 0.2 then
+            f.facing = sign(mx)
+        end
+        if state == 'air' and pressed(dev, 'x') then
+            setState(f, 'jumpatk')
+        end
+        if f.state == 'jumpatk' then
+            sweep(g, f, f.reach + 10, 30, 90, 13 * f.power, 300, true, 360)
+        end
+    elseif state == 'attack' then
+        local dur, a0, a1 = attackTiming(f.combo)
+        f.vx *= math.max(0, 1 - dt * 10)
+        if f.st >= a0 and f.st <= a1 then
+            local knock = f.combo == 3
+            local dmg = (if f.combo == 3 then 14 else 8) * f.power
+            sweep(g, f, f.reach, 28, 70, dmg, if knock then 330 else 90, knock, 380)
+        end
+        if pressed(dev, 'x') and f.st > 0.06 then
+            f.queued = true
+        end
+        if pressed(dev, 'y') or pressed(dev, 'b') then
+            if s.energy >= SPECIAL_COST then
+                startSpecial(g, f, s)
+                return
+            end
+        end
+        if f.st >= dur then
+            if f.queued and f.combo < 3 then
+                startAttack(f, f.combo + 1)
+            else
+                f.combo = 0
+                setState(f, 'idle')
+            end
+        end
+    elseif state == 'special' then
+        updateSpecial(g, f, dt, dev)
+    end
+end
+
+-- Villains -------------------------------------------------------------------------------
+
+local function nearestHero(g: Game, f: Fighter): Fighter?
+    local best: Fighter? = nil
+    local bd = math.huge
+    for _, h in g.fighters do
+        if h.team == 1 and alive(h) and h.state ~= 'enter' then
+            local d = math.abs(h.x - f.x) + math.abs(h.y - f.y) * 1.5
+            if d < bd then
+                bd = d
+                best = h
+            end
+        end
+    end
+    return best
+end
+
+-- How many villains are ahead of `me` in the queue on one side of a target.
+local function aheadOnSide(g: Game, target: Fighter, me: Fighter, side: number): number
+    local n = 0
+    local myD = math.abs(me.x - target.x)
+    for _, e in g.fighters do
+        if e ~= me and e.team == 2 and alive(e) and e.kind ~= 'boss' and sign(e.x - target.x) == side then
+            local d = math.abs(e.x - target.x)
+            if d < 240 and math.abs(e.y - target.y) < 70 and (d < myD or (d == myD and e.id < me.id)) then
+                n += 1
+            end
+        end
+    end
+    return n
+end
+
+local function updateEnemy(g: Game, f: Fighter, dt: number)
+    local state = f.state
+    local tgt = nearestHero(g, f)
+    if state == 'idle' or state == 'walk' then
+        f.cd -= dt
+        f.ai -= dt
+        if tgt == nil then
+            f.vx = 0
+            f.vy = 0
+            f.state = 'idle'
+            return
+        end
+        local side = sign(f.x - tgt.x)
+        local dxT = math.abs(tgt.x - f.x)
+        local want = f.reach * 0.75 + tgt.radius * 0.5
+        if f.kind ~= 'boss' and aheadOnSide(g, tgt, f, side) > 0 then
+            -- someone already has this side: go round the back, or wait a turn
+            if aheadOnSide(g, tgt, f, -side) == 0 then
+                side = -side
+            else
+                want += 150
+            end
+        end
+        local wx = tgt.x + side * want
+        local wy = tgt.y + (if f.kind == 'boss' then 0 else math.sin(f.id * 1.7) * 6)
+        local dx = wx - f.x
+        local dy = wy - f.y
+        if f.ai <= 0 then
+            f.ai = rnd(1.4, 3)
+            if math.random() < 0.22 and f.kind ~= 'boss' then
+                f.cd = math.max(f.cd, 0.6)
+            end
+        end
+        if f.kind == 'boss' and f.cd <= 0 then
+            if dxT > 360 then
+                setState(f, 'charge')
+                f.facing = -side
+                f.cd = rnd(2.2, 3.2)
+                return
+            elseif dxT < 330 and math.random() < 0.45 then
+                setState(f, 'slam')
+                f.facing = -side
+                f.cd = rnd(2.4, 3.6)
+                return
+            end
+        end
+        local inRange = dxT < f.reach + tgt.radius * 0.5 and math.abs(tgt.y - f.y) < 18
+        if inRange and f.cd <= 0 then
+            f.vx = 0
+            f.vy = 0
+            f.facing = sign(tgt.x - f.x)
+            setState(f, 'eatk')
+            f.cd = if f.kind == 'boss' then rnd(1.2, 2) else rnd(1.1, 2.3)
+        elseif math.abs(dx) < 10 and math.abs(dy) < 8 then
+            f.vx = 0
+            f.vy = 0
+            f.facing = sign(tgt.x - f.x)
+            f.state = 'idle'
+        else
+            f.vx = math.clamp(dx * 4, -f.speed, f.speed)
+            f.vy = math.clamp(dy * 4, -f.speed * 0.6, f.speed * 0.6)
+            f.facing = if math.abs(dx) > 40 then sign(dx) else sign(tgt.x - f.x)
+            f.state = 'walk'
+        end
+    elseif state == 'eatk' then
+        f.vx = 0
+        f.vy = 0
+        local w = f.windup
+        if f.st >= w and f.st <= w + 0.12 then
+            local knock = f.kind == 'boss' or (f.kind == 'heavy' and f.id % 2 == 0)
+            sweep(g, f, f.reach, 24, 70, f.dmg, if knock then 300 else 150, knock, 360)
+        end
+        if f.st >= w + 0.45 then
+            setState(f, 'idle')
+        end
+    elseif state == 'slam' then
+        f.vx = 0
+        f.vy = 0
+        if f.sp == 0 and f.st >= 0.65 then
+            f.sp = 1
+            g.shake = math.max(g.shake, 0.5)
+            local cx = f.x + f.facing * 80
+            addFx(g, 'wave', cx, f.y, 0, 0.7, '', G.WHITE, 1)
+            for _, d in g.fighters do
+                if d.team == 1 and canBeHit(d) and d.z < 20 then
+                    local dx = (d.x - cx) / 250
+                    local dy = (d.y - f.y) / 100
+                    if dx * dx + dy * dy < 1 then
+                        damage(g, f, d, 16, 300 * sign(d.x - cx), true, 420)
+                    end
+                end
+            end
+        end
+        if f.st >= 1.25 then
+            setState(f, 'idle')
+        end
+    elseif state == 'charge' then
+        if f.st < 0.45 then
+            f.vx = 0
+            f.vy = 0
+        else
+            f.vx = f.facing * 540
+            if tgt then
+                f.vy = math.clamp((tgt.y - f.y) * 2, -80, 80)
+            end
+            sweep(g, f, 70, 30, 80, 18, 380, true, 420)
+            if math.floor(f.st * 12) ~= math.floor((f.st - dt) * 12) then
+                addFx(g, 'dust', f.x - f.facing * 60, f.y, 0, 0.45, '', G.WHITE, 1.6)
+            end
+            local edge = (f.facing > 0 and f.x > g.camX + W - 90) or (f.facing < 0 and f.x < g.camX + 90)
+            if f.st > 1.7 or edge then
+                g.shake = math.max(g.shake, 0.2)
+                setState(f, 'idle')
+                f.vx = 0
+                f.vy = 0
+            end
+        end
+    end
+end
+
+-- Shots ------------------------------------------------------------------------------------
+
+local function updateShots(g: Game, dt: number)
+    for _, s in g.shots do
+        s.t += dt
+        if s.kind == 'bird' then
+            if not s.back and s.t > 0.42 then
+                s.back = true
+                table.clear(s.hit)
+            end
+            if s.back then
+                local o = s.owner
+                local ox, oy = A.projectileOrigin(o.kind, o.pose)
+                local dx = o.x + o.facing * ox * o.scale - s.x
+                s.vx = sign(dx) * 820
+                s.y += (o.y - s.y) * math.min(1, dt * 6)
+                s.z += (o.z - oy * o.scale - s.z) * math.min(1, dt * 6)
+                if math.abs(dx) < 30 or not alive(o) then
+                    s.dead = true
+                end
+            end
+        end
+        s.x += s.vx * dt
+        if s.t > s.life or s.x < g.camX - 120 or s.x > g.camX + W + 120 then
+            s.dead = true
+        end
+        if not s.dead then
+            for _, d in g.fighters do
+                if d.team ~= s.owner.team and not s.hit[d.id] and canBeHit(d) then
+                    if math.abs(d.x - s.x) < 26 + d.radius and math.abs(d.y - s.y) < 22 + d.radius * 0.3 and s.z > d.z and s.z < d.z + A.height(d.kind) * d.scale + 20 then
+                        s.hit[d.id] = true
+                        damage(g, s.owner, d, s.dmg, sign(s.vx) * (if s.knock then 300 else 110), s.knock, 380)
+                        if s.kind == 'bolt' then
+                            s.dead = true
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+    local i = 1
+    while i <= #g.shots do
+        if g.shots[i].dead then
+            table.remove(g.shots, i)
+        else
+            i += 1
+        end
+    end
+end
+
+-- Physics and shared state logic ------------------------------------------------------------
+
+local function physics(g: Game, f: Fighter, dt: number)
+    f.x += f.vx * dt
+    f.y += f.vy * dt
+    local landed = false
+    if f.z > 0 or f.vz > 0 then
+        local grav = GRAV
+        if (f.state == 'air' or f.state == 'jumpatk') and f.vz < 0 then
+            grav *= f.float
+        end
+        f.vz -= grav * dt
+        f.z += f.vz * dt
+        if f.z <= 0 then
+            f.z = 0
+            f.vz = 0
+            landed = true
+        end
+    end
+    if f.state == 'hurt' or f.state == 'down' or f.state == 'ko' or f.state == 'getup' then
+        if f.z <= 0 then
+            f.vx *= math.max(0, 1 - dt * 7)
+        end
+    end
+
+    local s = f.state
+    if s == 'hurt' and f.st > (if f.kind == 'boss' then 0.45 else 0.3) then
+        setState(f, 'idle')
+        f.vx = 0
+    elseif s == 'down' then
+        if landed then
+            g.shake = math.max(g.shake, 0.06)
+            addFx(g, 'dust', f.x, f.y, 0, 0.4, '', G.WHITE, f.scale)
+        end
+        if f.z <= 0 and f.st > 0.3 and f.st > 1.0 then
+            if f.hp <= 0 then
+                setState(f, 'ko')
+            else
+                setState(f, 'getup')
+            end
+        end
+    elseif s == 'getup' and f.st > 0.35 then
+        setState(f, 'idle')
+        f.invuln = math.max(f.invuln, if f.team == 1 then 1.2 else 0.3)
+    elseif (s == 'air' or s == 'jumpatk') and landed then
+        setState(f, 'idle')
+        addFx(g, 'dust', f.x, f.y, 0, 0.3, '', G.WHITE, 1)
+    elseif s == 'enter' and landed then
+        setState(f, 'idle')
+        addFx(g, 'dust', f.x, f.y, 0, 0.4, '', G.WHITE, 1.4)
+    end
+
+    f.y = math.clamp(f.y, FMIN, FMAX)
+    if f.team == 1 then
+        f.x = math.clamp(f.x, g.camX + 36, g.camX + W - 36)
+    elseif f.entering then
+        if f.x > g.camX + 60 and f.x < g.camX + W - 60 then
+            f.entering = false
+        end
+    else
+        f.x = math.clamp(f.x, g.camX + 30, g.camX + W - 30)
+    end
+end
+
+local function updatePose(g: Game, f: Fighter, dt: number)
+    local p = f.pose
+    p.t = g.t + f.id * 0.37
+    local speed = math.sqrt(f.vx * f.vx + f.vy * f.vy)
+    local walking = (f.state == 'walk' or f.state == 'idle') and speed > 20
+    p.walk += ((if walking then 1 else 0) - p.walk) * math.min(1, dt * 10)
+    p.phase += dt * (6 + speed * 0.03)
+    p.air = f.z > 1 and f.state ~= 'down' and f.state ~= 'ko'
+    p.hurt = f.state == 'hurt'
+    p.ko = f.state == 'ko'
+    local lying = f.state == 'down' or f.state == 'ko'
+    p.down += ((if lying then 1 else 0) - p.down) * math.min(1, dt * 12)
+    if f.state == 'getup' then
+        p.down = math.max(0, 1 - f.st / 0.3)
+    end
+    p.flip = f.facing
+    p.move = 0
+    p.ext = 0
+    if f.state == 'attack' then
+        local dur, activeStart, activeEnd = attackTiming(f.combo)
+        p.move = f.combo
+        p.ext = Motion.strike(f.st, dur, activeStart, activeEnd)
+    elseif f.state == 'jumpatk' then
+        p.move = 4
+        p.ext = 1
+    elseif f.state == 'special' then
+        p.move = 5
+        p.ext = 1
+    elseif f.state == 'eatk' then
+        p.move = 6
+        local w = f.windup
+        if f.st < w then
+            p.ext = -f.st / w
+        elseif f.st < w + 0.1 then
+            p.ext = (f.st - w) / 0.1
+        else
+            p.ext = math.max(0, 1 - (f.st - w - 0.1) / 0.35)
+        end
+    elseif f.state == 'slam' then
+        p.move = 7
+        p.ext = if f.st < 0.65 then -1 else 1
+    elseif f.state == 'charge' then
+        p.move = 1
+        p.ext = if f.st < 0.45 then -0.6 else 0.8
+        p.walk = if f.st < 0.45 then 0 else 1
+        p.phase += dt * 10
+    end
+end
+
+-- Stage flow ------------------------------------------------------------------------------------
+
+local function enemiesLeft(g: Game): number
+    local n = 0
+    for _, f in g.fighters do
+        if f.team == 2 and not f.removed then
+            n += 1
+        end
+    end
+    return n
+end
+
+local function spawnEnemy(g: Game, kind: string, side: number)
+    local x = if side > 0 then g.camX + W + 80 else g.camX - 80
+    local y = rnd(FMIN + 20, FMAX - 20)
+    local f = newFighter(g, kind, 2, x, y)
+    f.entering = true
+    f.facing = -side
+    if kind == 'boss' then
+        g.boss = f
+        g.banner = 'CINDERBLOCK!'
+        g.bannerSub = 'THE BOSS HAS ARRIVED'
+        g.bannerT = 2.2
+        g.shake = 0.4
+    end
+end
+
+local function beginCheckpoint(g: Game, cp: Checkpoint)
+    g.lockX = cp.x
+    g.waveT = 0
+    g.pending = {}
+    local n = math.max(1, activeSlots(g))
+    for _, sp in cp.spawns do
+        table.insert(g.pending, { kind = sp.kind, delay = sp.delay, side = sp.side })
+    end
+    -- more villains for more Titans
+    local extra = math.floor((#cp.spawns - (if cp.boss then 1 else 0)) * 0.35 * (n - 1) + 0.5)
+    for i = 1, extra do
+        table.insert(g.pending, { kind = 'bot', delay = 1.5 + i * 0.7, side = if i % 2 == 0 then 1 else -1 })
+    end
+    if cp.pizza then
+        table.insert(g.pickups, { x = cp.x + rnd(300, 900), y = rnd(FMIN + 30, FMAX - 30), t = 0, dead = false })
+    end
+end
+
+local function startGame(g: Game)
+    g.mode = 'play'
+    g.modeT = 0
+    g.fighters = {}
+    g.shots = {}
+    g.fx = {}
+    g.pickups = {}
+    g.cp = START_CHECKPOINT
+    g.camX = if START_CHECKPOINT > 1 then CHECKPOINTS[START_CHECKPOINT].x - 400 else 0
+    g.lockX = -1
+    g.pending = {}
+    g.goT = 0
+    g.paused = false
+    g.boss = nil
+    g.continueT = 0
+    local k = 0
+    for _, s in g.slots do
+        if s.dev ~= '' then
+            s.lives = 3
+            s.score = 0
+            s.energy = 60
+            s.out = false
+            s.respawn = 0
+            spawnHero(g, s, 170 + k * 80, 520 + k * 44)
+            k += 1
+        else
+            s.fighter = nil
+        end
+    end
+    g.banner = 'TITANS, GO!'
+    g.bannerSub = 'CLEAN UP JUMP CITY'
+    g.bannerT = 2.4
+    g.goT = 5
+end
+
+local function toTitle(g: Game)
+    g.mode = 'title'
+    g.modeT = 0
+    g.fighters = {}
+    g.shots = {}
+    g.fx = {}
+    g.pickups = {}
+    g.paused = false
+    g.boss = nil
+    g.selectT = -1
+    for i = 1, 4 do
+        g.slots[i] = newSlot(i)
+    end
+end
+
+local function heroTaken(g: Game, hero: number, except: Slot): boolean
+    for _, s in g.slots do
+        if s ~= except and s.dev ~= '' and s.hero == hero and (s.locked or g.mode == 'play') then
+            return true
+        end
+    end
+    return false
+end
+
+local function freeHero(g: Game, s: Slot): number
+    for i = 0, #HEROES - 1 do
+        local h = (s.hero - 1 + i) % #HEROES + 1
+        if not heroTaken(g, h, s) then
+            return h
+        end
+    end
+    return s.hero
+end
+
+local function joinSlot(g: Game, devId: string): Slot?
+    for _, s in g.slots do
+        if s.dev == '' then
+            s.dev = devId
+            s.locked = false
+            s.hero = s.idx
+            s.hero = freeHero(g, s)
+            return s
+        end
+    end
+    return nil
+end
+
+-- Mode updates -----------------------------------------------------------------------------------
+
+local function updateTitle(g: Game)
+    for id, d in g.devs do
+        if pressed(d, 'start') or pressed(d, 'a') then
+            g.mode = 'select'
+            g.modeT = 0
+            joinSlot(g, id)
+            return
+        end
+    end
+end
+
+local function updateSelect(g: Game, dt: number)
+    -- join
+    for id, d in g.devs do
+        if slotOf(g, id) == nil and (pressed(d, 'start') or pressed(d, 'a')) then
+            joinSlot(g, id)
+            d.pressed['a'] = nil
+            d.pressed['start'] = nil
+        end
+    end
+    local allLocked = true
+    local any = false
+    for _, s in g.slots do
+        local d = slotDevice(g, s)
+        if s.dev ~= '' and d then
+            any = true
+            if not s.locked then
+                allLocked = false
+                local dir = 0
+                if pressed(d, 'L') then
+                    dir = -1
+                elseif pressed(d, 'R') then
+                    dir = 1
+                end
+                if dir ~= 0 then
+                    for _ = 1, #HEROES do
+                        s.hero = (s.hero - 1 + dir) % #HEROES + 1
+                        if not heroTaken(g, s.hero, s) then
+                            break
+                        end
+                    end
+                end
+                if pressed(d, 'a') or pressed(d, 'start') then
+                    if not heroTaken(g, s.hero, s) then
+                        s.locked = true
+                        addFx(g, 'word', 0, 0, 0, 0.1, '', G.WHITE, 1)
+                    end
+                elseif pressed(d, 'b') or pressed(d, 'cancel') then
+                    s.dev = ''
+                end
+            else
+                if pressed(d, 'b') or pressed(d, 'cancel') then
+                    s.locked = false
+                    g.selectT = -1
+                elseif pressed(d, 'start') then
+                    g.selectT = 0.01
+                end
+            end
+        end
+    end
+    if not any then
+        toTitle(g)
+        return
+    end
+    if allLocked then
+        if g.selectT < 0 then
+            g.selectT = 3
+        end
+        g.selectT -= dt
+        if g.selectT <= 0 then
+            startGame(g)
+        end
+    else
+        g.selectT = -1
+    end
+end
+
+local function updatePlay(g: Game, dt: number)
+    -- start: drop-in, pause, continue
+    for id, d in g.devs do
+        if pressed(d, 'start') then
+            local s = slotOf(g, id)
+            if s == nil then
+                local ns = joinSlot(g, id)
+                if ns then
+                    ns.locked = true
+                    ns.lives = 3
+                    ns.score = 0
+                    ns.energy = 60
+                    ns.out = false
+                    spawnHero(g, ns, g.camX + 200 + ns.idx * 60, rnd(FMIN + 30, FMAX - 30))
+                end
+            elseif s.out then
+                s.out = false
+                s.lives = 3
+                spawnHero(g, s, g.camX + 240, rnd(FMIN + 30, FMAX - 30))
+            else
+                g.paused = not g.paused
+            end
+        end
+    end
+    if g.paused then
+        for _, s in g.slots do
+            local d = slotDevice(g, s)
+            if d and (pressed(d, 'cancel') or pressed(d, 'back')) then
+                toTitle(g)
+                return
+            end
+        end
+        return
+    end
+
+    g.goT = math.max(0, g.goT - dt)
+    g.bannerT = math.max(0, g.bannerT - dt)
+    g.shake = math.max(0, g.shake - dt)
+
+    for _, f in g.fighters do
+        f.flash = math.max(0, f.flash - dt)
+        f.hitT += dt
+    end
+
+    if g.hitstop > 0 then
+        g.hitstop -= dt
+        return
+    end
+
+    -- fighters
+    for _, s in g.slots do
+        s.denyT = math.max(0, s.denyT - dt)
+        local f = s.fighter
+        if f and not f.removed then
+            updatePlayer(g, s, f, dt)
+        end
+    end
+    for _, f in g.fighters do
+        if f.team == 2 and alive(f) then
+            updateEnemy(g, f, dt)
+        end
+    end
+    for _, f in g.fighters do
+        if not f.removed then
+            f.st += dt
+            f.invuln = math.max(0, f.invuln - dt)
+            physics(g, f, dt)
+            updatePose(g, f, dt)
+        end
+    end
+
+    -- keep villains from stacking on one spot
+    for _, a in g.fighters do
+        if a.team == 2 and alive(a) then
+            for _, b in g.fighters do
+                if b ~= a and b.team == 2 and alive(b) and a.id < b.id then
+                    local dx = b.x - a.x
+                    local dy = b.y - a.y
+                    local r = (a.radius + b.radius) * 0.9
+                    if math.abs(dx) < r and math.abs(dy) < 16 then
+                        local push = (r - math.abs(dx)) * 0.5 * math.min(1, dt * 10)
+                        a.x -= sign(dx) * push
+                        b.x += sign(dx) * push
+                    end
+                end
+            end
+        end
+    end
+
+    updateShots(g, dt)
+
+    -- knocked-out fighters
+    for _, f in g.fighters do
+        if f.state == 'ko' and not f.removed then
+            if f.team == 2 and f.st > 1.1 then
+                f.removed = true
+                local chance = if f.kind == 'heavy' then 0.4 else 0.12
+                if f.kind ~= 'boss' and math.random() < chance then
+                    table.insert(g.pickups, { x = f.x, y = f.y, t = 0, dead = false })
+                end
+            elseif f.team == 1 and f.st > 1.3 then
+                f.removed = true
+                local s = g.slots[f.slot]
+                s.fighter = nil
+                s.lives -= 1
+                if s.lives > 0 then
+                    s.respawn = 0.6
+                else
+                    s.out = true
+                end
+            end
+        end
+    end
+    for _, s in g.slots do
+        if s.dev ~= '' and s.respawn > 0 then
+            s.respawn -= dt
+            if s.respawn <= 0 then
+                s.respawn = 0
+                spawnHero(g, s, g.camX + rnd(200, 500), rnd(FMIN + 30, FMAX - 30))
+            end
+        end
+    end
+    local i = 1
+    while i <= #g.fighters do
+        if g.fighters[i].removed then
+            table.remove(g.fighters, i)
+        else
+            i += 1
+        end
+    end
+
+    -- pizza!
+    for _, p in g.pickups do
+        p.t += dt
+        for _, s in g.slots do
+            local f = s.fighter
+            if f and not p.dead and alive(f) and f.z < 30 and math.abs(f.x - p.x) < 34 and math.abs(f.y - p.y) < 22 then
+                p.dead = true
+                f.hp = math.min(f.maxHp, f.hp + 45)
+                s.score += 100
+                addFx(g, 'word', p.x, p.y, 70, 0.9, 'PIZZA!', G.hex(0xFFD34D), 26)
+            end
+        end
+    end
+    local j = 1
+    while j <= #g.pickups do
+        if g.pickups[j].dead or g.pickups[j].x < g.camX - 100 then
+            table.remove(g.pickups, j)
+        else
+            j += 1
+        end
+    end
+
+    -- camera
+    local minX, maxX = math.huge, -math.huge
+    for _, f in g.fighters do
+        if f.team == 1 and alive(f) then
+            minX = math.min(minX, f.x)
+            maxX = math.max(maxX, f.x)
+        end
+    end
+    local limit = if g.lockX >= 0 then g.lockX else (if g.cp <= #CHECKPOINTS then CHECKPOINTS[g.cp].x else g.camX)
+    if maxX > -math.huge then
+        local target = math.min(maxX - 620, minX - 60)
+        if target > g.camX then
+            g.camX += (target - g.camX) * math.min(1, dt * 5)
+        end
+    end
+    g.camX = math.min(g.camX, limit)
+
+    -- checkpoints and waves
+    if g.lockX < 0 and g.cp <= #CHECKPOINTS and g.camX >= CHECKPOINTS[g.cp].x - 1 then
+        g.camX = CHECKPOINTS[g.cp].x
+        beginCheckpoint(g, CHECKPOINTS[g.cp])
+        g.goT = 0
+    end
+    if g.lockX >= 0 then
+        g.waveT += dt
+        local k = 1
+        while k <= #g.pending do
+            local sp = g.pending[k]
+            if g.waveT >= sp.delay then
+                spawnEnemy(g, sp.kind, sp.side)
+                table.remove(g.pending, k)
+            else
+                k += 1
+            end
+        end
+        if #g.pending == 0 and enemiesLeft(g) == 0 then
+            local cp = CHECKPOINTS[g.cp]
+            g.lockX = -1
+            g.cp += 1
+            if cp.boss then
+                g.mode = 'win'
+                g.modeT = 0
+                g.banner = ''
+                for _, s in g.slots do
+                    if s.dev ~= '' and not s.out then
+                        s.score += 10000
+                    end
+                end
+            else
+                g.goT = 3.5
+            end
+        end
+    end
+
+    -- continue countdown when every Titan is down for good
+    local anyAlive = false
+    for _, s in g.slots do
+        if s.dev ~= '' and not s.out then
+            anyAlive = true
+        end
+    end
+    if not anyAlive then
+        if g.continueT <= 0 then
+            g.continueT = 10
+        end
+        g.continueT -= dt
+        if g.continueT <= 0 then
+            g.mode = 'over'
+            g.modeT = 0
+        end
+    else
+        g.continueT = 0
+    end
+end
+
+local function updateFx(g: Game, dt: number)
+    for _, e in g.fx do
+        e.t += dt
+    end
+    local i = 1
+    while i <= #g.fx do
+        if g.fx[i].t >= g.fx[i].life then
+            table.remove(g.fx, i)
+        else
+            i += 1
+        end
+    end
+end
+
+local function update(g: Game, dt: number)
+    dt = math.min(dt, 1 / 30)
+    g.t += dt
+    g.modeT += dt
+    if g.mode == 'title' then
+        updateTitle(g)
+    elseif g.mode == 'select' then
+        updateSelect(g, dt)
+    elseif g.mode == 'play' then
+        updatePlay(g, dt)
+    elseif g.mode == 'over' or g.mode == 'win' then
+        for _, d in g.devs do
+            if g.modeT > 1.5 and (pressed(d, 'start') or pressed(d, 'a')) then
+                toTitle(g)
+                break
+            end
+        end
+    end
+    if not g.paused then
+        updateFx(g, dt)
+    end
+    for _, d in g.devs do
+        table.clear(d.pressed)
+    end
+end
+
+-- Drawing ------------------------------------------------------------------------------------------
+
+local function drawFighter(g: Game, f: Fighter)
+    local sx = f.x - g.camX
+    local sy = f.y - f.z
+    G.save()
+    G.translate(sx, sy)
+    G.scale(f.facing * f.scale, f.scale)
+    if f.invuln > 0 and f.state ~= 'special' and math.floor(g.t * 20) % 2 == 0 then
+        G.opacity(0.45)
+    end
+    if f.state == 'ko' and f.team == 2 then
+        G.opacity(if math.floor(g.t * 14) % 2 == 0 then 0.3 else 0.9)
+    end
+    if f.flash > 0 then
+        G.tint(G.hex(0xFF9A9A))
+    end
+    A.fighter(f.kind, f.pose)
+    G.restore()
+
+    -- the Sonic Cannon beam comes out of Cyborg's arm
+    if f.kind == 'cyborg' and f.state == 'special' and f.st > 0.28 and f.st < 0.82 then
+        local p = math.min(1, (f.st - 0.28) / 0.08)
+        local ox, oy = A.projectileOrigin(f.kind, f.pose)
+        A.beam(sx + f.facing * ox * f.scale, sy + oy * f.scale, 1150 * p, g.t, f.facing, 1 - math.max(0, f.st - 0.7) * 6)
+    end
+
+    local top = A.height(f.kind) * f.scale
+    if f.slot > 0 then
+        local s = g.slots[f.slot]
+        local ty = sy - top - 30
+        G.poly({ sx - 7, ty + 16, sx + 7, ty + 16, sx, ty + 24 }, s.color, 1.5)
+        G.text(`P{f.slot}`, sx, ty - 2, 14, s.color, 0.5)
+    elseif f.kind ~= 'boss' and f.hitT < 2 and f.state ~= 'ko' then
+        local w = 60 * f.scale
+        local by = sy - top - 16
+        G.rect(sx - w / 2 - 2, by - 2, w + 4, 10, G.INK)
+        G.rect(sx - w / 2, by, w * f.hp / f.maxHp, 6, G.hex(0xFF7A2E))
+    end
+end
+
+local function drawShot(g: Game, s: Shot)
+    local sx = s.x - g.camX
+    local sy = s.y - s.z
+    if s.kind == 'bird' then
+        A.birdarang(sx, sy, s.t * 24)
+    elseif s.kind == 'bolt' then
+        A.starbolt(sx, sy, s.t, sign(s.vx))
+    end
+end
+
+type DrawItem = { y: number, kind: number, idx: number }
+
+local function drawWorld(g: Game)
+    A.stage(g.camX, g.t)
+
+    -- ground effects and shadows first
+    for _, e in g.fx do
+        if e.kind == 'wave' then
+            A.shockwave(e.x - g.camX, e.y, 40 + e.t / e.life * 260, 1 - e.t / e.life)
+        end
+    end
+    for _, f in g.fighters do
+        A.shadow(f.x - g.camX, f.y, (f.radius + 8) * (if f.kind == 'beast' and f.state == 'special' then 2 else 1), f.z)
+    end
+    for _, s in g.shots do
+        A.shadow(s.x - g.camX, s.y, 12, s.z)
+    end
+    for _, p in g.pickups do
+        A.shadow(p.x - g.camX, p.y, 18, 10)
+    end
+
+    -- depth-sorted bodies
+    local items: { DrawItem } = {}
+    for i, f in g.fighters do
+        table.insert(items, { y = f.y, kind = 1, idx = i })
+    end
+    for i, s in g.shots do
+        table.insert(items, { y = s.y + 1, kind = 2, idx = i })
+    end
+    for i, p in g.pickups do
+        table.insert(items, { y = p.y - 1, kind = 3, idx = i })
+    end
+    table.sort(items, function(a: DrawItem, b: DrawItem): boolean
+        return a.y < b.y
+    end)
+    for _, it in items do
+        if it.kind == 1 then
+            drawFighter(g, g.fighters[it.idx])
+        elseif it.kind == 2 then
+            drawShot(g, g.shots[it.idx])
+        else
+            local p = g.pickups[it.idx]
+            A.pizza(p.x - g.camX, p.y - 26 - math.sin(p.t * 4) * 5, p.t)
+        end
+    end
+
+    -- overhead effects
+    for _, e in g.fx do
+        local k = e.t / e.life
+        local sx = e.x - g.camX
+        local sy = e.y - e.z
+        if e.kind == 'spark' then
+            A.spark(sx, sy, k, e.color)
+        elseif e.kind == 'dust' then
+            G.save()
+            G.translate(sx, sy)
+            G.scale(e.size, e.size)
+            A.dust(0, 0, k)
+            G.restore()
+        elseif e.kind == 'dark' then
+            A.darkBurst(sx, e.y, 60 + k * 200, 1 - k * k)
+        elseif e.kind == 'word' and e.text ~= '' then
+            local pop = math.min(1, e.t / 0.08)
+            local sz = e.size * (0.6 + 0.4 * pop)
+            G.save()
+            G.opacity(1 - math.max(0, k - 0.7) / 0.3)
+            G.text(e.text, sx, sy - k * 30, sz, e.color, 0.5)
+            G.restore()
+        end
+    end
+end
+
+local function bar(x: number, y: number, w: number, h: number, v: number, c: Color)
+    G.rrect(x - 2, y - 2, w + 4, h + 4, (h + 4) / 2, G.INK)
+    G.rrect(x, y, w, h, h / 2, G.hex(0x3A2F4A))
+    if v > 0 then
+        G.rrect(x, y, math.max(h, w * math.clamp(v, 0, 1)), h, h / 2, c)
+    end
+end
+
+local function drawHud(g: Game)
+    for _, s in g.slots do
+        local x = 12 + (s.idx - 1) * 317
+        local y = 10
+        local w = 305
+        G.save()
+        G.opacity(0.9)
+        G.rrect(x, y, w, 78, 12, G.hex(0x1C1330), 3)
+        G.restore()
+        G.rrect(x + 3, y + 3, w - 6, 6, 3, s.color)
+        if s.dev == '' then
+            if math.floor(g.t * 2) % 2 == 0 then
+                G.text(`P{s.idx} PRESS START`, x + w / 2, y + 34, 18, s.color, 0.5)
+            end
+        else
+            local h = HEROES[s.hero]
+            G.oellipse(x + 40, y + 44, 28, 28, G.shade(h.color, -0.35), 2.5)
+            G.save()
+            G.clipEllipse(x + 40, y + 44, 28, 28)
+            G.opacity(if s.out then 0.4 else 1)
+            A.portrait(h.key, x + 40, y + 48, 0.9, g.t)
+            G.restore()
+            G.text(h.name, x + 78, y + 16, 15, G.WHITE)
+            G.text(`{s.score}`, x + w - 12, y + 16, 14, G.hex(0xFFE14D), 1)
+            if s.out then
+                if math.floor(g.t * 2) % 2 == 0 then
+                    G.text('CONTINUE? START', x + 78, y + 44, 14, s.color)
+                end
+            else
+                local f = s.fighter
+                local hp = if f then f.hp / f.maxHp else 0
+                local hc = if hp > 0.5 then G.hex(0x3BD16F) elseif hp > 0.25 then G.hex(0xFFC21A) else G.hex(0xFF4D5E)
+                bar(x + 78, y + 40, 212, 11, hp, hc)
+                local ready = s.energy >= SPECIAL_COST
+                local ec = if ready then G.hex(0x7FD8FF) else G.hex(0x3A6FB0)
+                if s.denyT > 0 and math.floor(g.t * 16) % 2 == 0 then
+                    ec = G.hex(0xFF4D5E)
+                end
+                bar(x + 78, y + 60, 150, 7, s.energy / 100, ec)
+                if ready and math.floor(g.t * 3) % 2 == 0 then
+                    G.text('SP', x + 236, y + 57, 11, G.hex(0x7FD8FF))
+                end
+                G.text(`x{s.lives}`, x + w - 12, y + 57, 13, G.WHITE, 1)
+            end
+        end
+    end
+
+    local b = g.boss
+    if b and not b.removed then
+        G.text('CINDERBLOCK', W / 2, H - 58, 18, G.hex(0xFFD23A), 0.5)
+        bar(W / 2 - 300, H - 32, 600, 16, b.hp / b.maxHp, G.hex(0xFF7A2E))
+    end
+end
+
+local function drawBanner(g: Game)
+    if g.bannerT <= 0 or g.banner == '' then
+        return
+    end
+    local k = g.bannerT
+    local a = math.min(1, k / 0.3)
+    local slide = math.max(0, 1 - (2.6 - k) / 0.25)
+    G.save()
+    G.opacity(a)
+    G.translate(-slide * 400, 0)
+    G.poly({ 0, 260, W, 240, W, 360, 0, 380 }, G.fade(G.hex(0x1C1330), 0.85))
+    G.text(g.banner, W / 2, 262, 64, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+    G.text(g.bannerSub, W / 2, 340, 20, G.WHITE, 0.5)
+    G.restore()
+end
+
+local function drawTitle(g: Game)
+    A.stage((g.t * 40) % 4000, g.t)
+    G.save()
+    G.opacity(0.45)
+    G.rect(0, 0, W, H, G.hex(0x140C24))
+    G.restore()
+
+    -- logo
+    G.vgrad(0, 0, W, 330, G.fade(G.hex(0x140C24), 0.85), G.fade(G.hex(0x140C24), 0))
+    local bob = math.sin(g.t * 2) * 4
+    G.save()
+    G.translate(W / 2, 110 + bob)
+    G.rotate(-0.04)
+    G.text('TEEN TITANS', 0, -10, 96, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+    G.poly({ -250, 104, 250, 96, 262, 150, -262, 156 }, G.hex(0xD7263D), 3)
+    G.text('JUMP CITY BRAWL', 0, 110, 34, G.WHITE, 0.5)
+    G.restore()
+
+    -- the team
+    for i, h in HEROES do
+        local x = W / 2 + (i - 3) * 190
+        local p = A.newPose()
+        p.t = g.t + i
+        A.shadow(x, 560, 34, 0)
+        G.save()
+        G.translate(x, 560)
+        G.scale(1.5, 1.5)
+        A.fighter(h.key, p, true)
+        G.restore()
+        G.text(h.name, x, 578, 16, h.color, 0.5)
+    end
+
+    if math.floor(g.t * 2.5) % 2 == 0 then
+        G.text('PRESS START', W / 2, 628, 36, G.WHITE, 0.5)
+    end
+    local pads = 0
+    for id, _ in g.devs do
+        if string.sub(id, 1, 3) == 'pad' then
+            pads += 1
+        end
+    end
+    G.text('X: ATTACK   A: JUMP   Y / B: SPECIAL   START: JOIN / PAUSE', W / 2, 676, 14, G.hex(0xCFC6D8), 0.5)
+    G.text(`1-4 PLAYERS   CONTROLLERS CONNECTED: {pads}`, W / 2, 698, 12, G.hex(0x8D839E), 0.5)
+    G.text('UNOFFICIAL FAN GAME', W - 16, H - 22, 11, G.hex(0x8D839E), 1)
+end
+
+local function statBar(x: number, y: number, label: string, v: number, c: Color)
+    G.text(label, x, y, 12, G.hex(0xCFC6D8))
+    bar(x + 60, y + 1, 150, 9, v, c)
+end
+
+local function drawSelect(g: Game)
+    A.stage(1800 + math.sin(g.t * 0.2) * 200, g.t)
+    G.save()
+    G.opacity(0.6)
+    G.rect(0, 0, W, H, G.hex(0x140C24))
+    G.restore()
+    G.text('CHOOSE YOUR TITAN', W / 2, 26, 44, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+
+    for _, s in g.slots do
+        local x = 24 + (s.idx - 1) * 312
+        local y = 96
+        local w = 296
+        local h = 450
+        G.save()
+        G.opacity(0.92)
+        G.rrect(x, y, w, h, 16, G.hex(0x1C1330), 3)
+        G.restore()
+        G.rrect(x + 4, y + 4, w - 8, 34, 12, s.color)
+        G.text(`PLAYER {s.idx}`, x + w / 2, y + 12, 18, G.WHITE, 0.5)
+        if s.dev == '' then
+            if math.floor(g.t * 2) % 2 == 0 then
+                G.text('PRESS START', x + w / 2, y + 200, 22, s.color, 0.5)
+            end
+            G.text('TO JOIN', x + w / 2, y + 234, 16, G.hex(0x8D839E), 0.5)
+        else
+            local hero = HEROES[s.hero]
+            local d = g.devs[s.dev]
+            G.text(if d then d.label else '', x + w / 2, y + 48, 12, G.hex(0x8D839E), 0.5)
+            G.glow(x + w / 2, y + 220, 120, hero.color, 0.5)
+            local p = A.newPose()
+            p.t = g.t + s.idx
+            if s.locked then
+                p.move = 5
+                p.ext = 1
+            end
+            A.shadow(x + w / 2, y + 300, 44, 0)
+            G.save()
+            G.translate(x + w / 2, y + 300)
+            G.scale(1.65, 1.65)
+            A.fighter(hero.key, p)
+            G.restore()
+            local taken = heroTaken(g, s.hero, s)
+            G.text(hero.name, x + w / 2, y + 318, 26, if taken then G.hex(0x8D839E) else hero.color, 0.5)
+            statBar(x + 30, y + 360, 'POWER', (hero.power - 0.8) / 0.5, G.hex(0xFF4D5E))
+            statBar(x + 30, y + 380, 'SPEED', (hero.speed - 180) / 120, G.hex(0x3BD16F))
+            statBar(x + 30, y + 400, 'HEALTH', (hero.hp - 80) / 70, G.hex(0x3A9BFF))
+            G.text(hero.special, x + w / 2, y + 424, 12, G.hex(0xFFE14D), 0.5)
+            if s.locked then
+                G.save()
+                G.translate(x + w / 2, y + 262)
+                G.rotate(-0.12)
+                G.rrect(-86, -26, 172, 52, 10, G.hex(0xFFE14D), 3)
+                G.text('READY!', 0, -15, 30, G.hex(0xB0122A), 0.5, G.hex(0xFFE14D))
+                G.restore()
+            else
+                local wob = math.sin(g.t * 6) * 4
+                G.text('<', x + 20 - wob, y + 200, 34, s.color)
+                G.text('>', x + w - 44 + wob, y + 200, 34, s.color)
+            end
+        end
+    end
+
+    -- roster
+    for i, h in HEROES do
+        local x = W / 2 + (i - 3) * 110
+        local y = 614
+        local lockedBy = 0
+        for _, s in g.slots do
+            if s.dev ~= '' and s.locked and s.hero == i then
+                lockedBy = s.idx
+            end
+        end
+        G.oellipse(x, y, 38, 38, if lockedBy > 0 then SLOT_COLORS[lockedBy] else G.hex(0x2A2040), 3)
+        G.save()
+        G.clipEllipse(x, y, 38, 38)
+        G.opacity(if lockedBy > 0 then 0.55 else 1)
+        A.portrait(h.key, x, y + 6, 1.15, g.t)
+        G.restore()
+        local n = 0
+        for _, s in g.slots do
+            if s.dev ~= '' and s.hero == i and not s.locked then
+                G.text(`P{s.idx}`, x - 30 + n * 22, y + 42, 12, s.color)
+                n += 1
+            end
+        end
+    end
+    if g.selectT > 0 then
+        G.text(`STARTING IN {math.ceil(g.selectT)}`, W / 2, 668, 26, G.WHITE, 0.5)
+    else
+        G.text('MOVE: PICK   A: READY   B: BACK   START: JOIN', W / 2, 676, 14, G.hex(0xCFC6D8), 0.5)
+    end
+end
+
+local function drawEnd(g: Game)
+    G.save()
+    G.opacity(math.min(0.75, g.modeT))
+    G.rect(0, 0, W, H, G.hex(0x140C24))
+    G.restore()
+    if g.mode == 'win' then
+        G.text('JUMP CITY IS SAFE!', W / 2, 150, 64, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+        G.text('TITANS WIN!', W / 2, 240, 34, G.WHITE, 0.5)
+    else
+        G.text('GAME OVER', W / 2, 170, 84, G.hex(0xFF4D5E), 0.5)
+    end
+    local row = 0
+    for _, s in g.slots do
+        if s.dev ~= '' then
+            local h = HEROES[s.hero]
+            local y = 330 + row * 64
+            A.portrait(h.key, W / 2 - 200, y + 14, 0.9, g.t)
+            G.text(`P{s.idx} {h.name}`, W / 2 - 160, y, 22, s.color)
+            G.text(`{s.score}`, W / 2 + 240, y, 22, G.WHITE, 1)
+            row += 1
+        end
+    end
+    if g.modeT > 1.5 and math.floor(g.t * 2.5) % 2 == 0 then
+        G.text('PRESS START', W / 2, 630, 30, G.WHITE, 0.5)
+    end
+end
+
+local function drawPlay(g: Game)
+    local shake = g.shake
+    G.save()
+    if shake > 0 then
+        G.translate(rnd(-1, 1) * shake * 22, rnd(-1, 1) * shake * 14)
+    end
+    drawWorld(g)
+    G.restore()
+
+    if g.goT > 0 and math.floor(g.t * 3) % 2 == 0 then
+        G.text('GO!', W - 150, 300, 56, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+        G.poly({ W - 210, 380, W - 110, 380, W - 110, 360, W - 60, 400, W - 110, 440, W - 110, 420, W - 210, 420 }, G.hex(0xFFE14D), 3)
+    end
+    drawBanner(g)
+    drawHud(g)
+
+    if g.continueT > 0 then
+        G.save()
+        G.opacity(0.6)
+        G.rect(0, 0, W, H, G.hex(0x140C24))
+        G.restore()
+        G.text('CONTINUE?', W / 2, 250, 64, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+        G.text(`{math.ceil(g.continueT)}`, W / 2, 340, 90, G.WHITE, 0.5)
+        G.text('PRESS START', W / 2, 470, 26, G.WHITE, 0.5)
+    end
+    if g.paused then
+        G.save()
+        G.opacity(0.6)
+        G.rect(0, 0, W, H, G.hex(0x140C24))
+        G.restore()
+        G.text('PAUSED', W / 2, 270, 72, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+        G.text('START: RESUME    BACK / ESC: QUIT TO TITLE', W / 2, 380, 18, G.WHITE, 0.5)
+    end
+end
+
+local function drawGame(g: Game)
+    if g.mode == 'title' then
+        drawTitle(g)
+    elseif g.mode == 'select' then
+        drawSelect(g)
+    elseif g.mode == 'play' then
+        drawPlay(g)
+    else
+        drawWorld(g)
+        drawHud(g)
+        drawEnd(g)
+    end
+end
+
+-- Layout protocol ----------------------------------------------------------------------------------
+
+function init(self: Main, context: Context): boolean
+    return true
+end
+
+function resize(self: Main, size: Vector, scale: number)
+    self.size = size
+end
+
+function advance(self: Main, seconds: number): boolean
+    update(self.g, seconds)
+    return true
+end
+
+function draw(self: Main, renderer: Renderer)
+    G.begin(renderer)
+    local sw = if self.size.x > 0 then self.size.x else W
+    local sh = if self.size.y > 0 then self.size.y else H
+    local sc = math.min(sw / W, sh / H)
+    local ox = (sw - W * sc) / 2
+    local oy = (sh - H * sc) / 2
+    G.rect(0, 0, sw, sh, G.BLACK)
+    G.save()
+    G.translate(ox, oy)
+    G.scale(sc, sc)
+    G.clipRect(0, 0, W, H)
+    drawGame(self.g)
+    G.restore()
+end
+
+function keyboardEvent(self: Main, e: KeyboardEvent): boolean
+    local bind = KEYS[e.key]
+    if bind == nil or e.phase == 'repeat' then
+        return false
+    end
+    local g = self.g
+    local d = device(g, bind.dev, if bind.dev == 'kb1' then 'KEYBOARD 1' else 'KEYBOARD 2')
+    setButton(d, bind.btn, e.phase == 'down')
+    d.mx = (if d.held['R'] then 1 else 0) - (if d.held['L'] then 1 else 0)
+    d.my = (if d.held['D'] then 1 else 0) - (if d.held['U'] then 1 else 0)
+    if d.mx ~= 0 and d.my ~= 0 then
+        d.mx *= 0.7071
+        d.my *= 0.7071
+    end
+    return true
+end
+
+local function padId(n: number): string
+    return `pad{n}`
+end
+
+function gamepadConnected(self: Main, e: GamepadConnected)
+    device(self.g, padId(e.deviceId), `CONTROLLER {e.deviceId}`)
+end
+
+function gamepadDisconnected(self: Main, e: GamepadDisconnected)
+    local g = self.g
+    local id = padId(e.deviceId)
+    g.devs[id] = nil
+    -- a pulled controller pauses the game rather than dropping the player
+    if g.mode == 'play' and slotOf(g, id) ~= nil then
+        g.paused = true
+    end
+end
+
+function gamepadEvent(self: Main, e: GamepadEvent)
+    local d = device(self.g, padId(e.deviceId), `CONTROLLER {e.deviceId}`)
+    local std = e.isStandardMapping
+    local stick = e.leftStick
+    local sx = if math.abs(stick.x) > 0.28 then stick.x else 0
+    local sy = if math.abs(stick.y) > 0.28 then stick.y else 0
+    local left = if std then e.dpadLeft else e:buttonPressed(15)
+    local right = if std then e.dpadRight else e:buttonPressed(16)
+    local up = if std then e.dpadUp else e:buttonPressed(13)
+    local down = if std then e.dpadDown else e:buttonPressed(14)
+    local mx = sx + (if right then 1 else 0) - (if left then 1 else 0)
+    local my = sy + (if down then 1 else 0) - (if up then 1 else 0)
+    d.mx = math.clamp(mx, -1, 1)
+    d.my = math.clamp(my, -1, 1)
+    local length = math.sqrt(d.mx * d.mx + d.my * d.my)
+    if length > 1 then
+        d.mx /= length
+        d.my /= length
+    end
+    setButton(d, 'L', d.mx < -0.5)
+    setButton(d, 'R', d.mx > 0.5)
+    setButton(d, 'U', d.my < -0.5)
+    setButton(d, 'D', d.my > 0.5)
+    if std then
+        setButton(d, 'a', e.south)
+        setButton(d, 'b', e.east)
+        setButton(d, 'x', e.west)
+        setButton(d, 'y', e.north or e.rightShoulder or e.rightTriggerPressed or e.rightTrigger > 0.5)
+        setButton(d, 'start', e.start or e.forward)
+        setButton(d, 'back', e.back)
+    else
+        setButton(d, 'a', e:buttonPressed(1))
+        setButton(d, 'b', e:buttonPressed(2))
+        setButton(d, 'x', e:buttonPressed(3))
+        setButton(d, 'y', e:buttonPressed(4) or e:buttonPressed(6) or e:buttonPressed(8))
+        setButton(d, 'start', e:buttonPressed(10))
+        setButton(d, 'back', e:buttonPressed(9))
+    end
+end
+
+local function create(context: Context): Layout<Main>
+    return {
+        g = newGame(),
+        size = Vector.xy(0, 0),
+        init = init,
+        resize = resize,
+        advance = advance,
+        draw = draw,
+        keyboardEvent = keyboardEvent,
+        gamepadConnected = gamepadConnected,
+        gamepadDisconnected = gamepadDisconnected,
+        gamepadEvent = gamepadEvent,
+    }
+end
+
+-- Plain module export lets regression tests drive the same callbacks as Rive.
+return { create = create }

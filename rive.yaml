@@ -1,0 +1,9 @@
+name: titans_brawl
+main: main
+artboard:
+  width: 1280
+  height: 720
+  background: "#140c24"
+logs:
+  file: build/rive.log
+  problems: build/problems.log
