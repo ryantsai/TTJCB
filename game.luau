@@ -13,6 +13,7 @@
 local G = require('gfx')
 local A = require('art')
 local Motion = require('motion')
+local Attacks = require('attacks')
 
 local W = G.W
 local H = G.H
@@ -489,16 +490,8 @@ local function startAttack(f: Fighter, combo: number)
     setState(f, 'attack')
     f.combo = combo
     f.queued = false
-    f.vx = f.facing * 60
+    f.vx = f.facing * Attacks.get(f.kind, combo).lunge
     f.vy = 0
-end
-
-local function attackTiming(combo: number): (number, number, number)
-    -- duration, active start, active end
-    if combo == 3 then
-        return 0.42, 0.12, 0.24
-    end
-    return 0.28, 0.06, 0.15
 end
 
 local function startSpecial(g: Game, f: Fighter, s: Slot)
@@ -631,12 +624,12 @@ local function updatePlayer(g: Game, s: Slot, f: Fighter, dt: number)
             sweep(g, f, f.reach + 10, 30, 90, 13 * f.power, 300, true, 360)
         end
     elseif state == 'attack' then
-        local dur, a0, a1 = attackTiming(f.combo)
+        local attack = Attacks.get(f.kind, f.combo)
+        local dur, a0, a1 = attack.duration, attack.first, attack.last
         f.vx *= math.max(0, 1 - dt * 10)
         if f.st >= a0 and f.st <= a1 then
             local knock = f.combo == 3
-            local dmg = (if f.combo == 3 then 14 else 8) * f.power
-            sweep(g, f, f.reach, 28, 70, dmg, if knock then 330 else 90, knock, 380)
+            sweep(g, f, attack.reach, attack.depth, 70, attack.damage * f.power, attack.knockback, knock, attack.launch)
         end
         if pressed(dev, 'x') and f.st > 0.06 then
             f.queued = true
@@ -945,10 +938,18 @@ local function updatePose(g: Game, f: Fighter, dt: number)
     p.flip = f.facing
     p.move = 0
     p.ext = 0
+    p.style = f.kind
+    p.windup = 0
+    p.stroke = 0
+    p.active = false
     if f.state == 'attack' then
-        local dur, activeStart, activeEnd = attackTiming(f.combo)
+        local attack = Attacks.get(f.kind, f.combo)
+        local dur, activeStart, activeEnd = attack.duration, attack.first, attack.last
+        p.stroke = math.clamp((f.st - activeStart) / (activeEnd - activeStart), 0, 1)
+        p.active = f.st >= activeStart and f.st <= activeEnd
         p.move = f.combo
         p.ext = Motion.strike(f.st, dur, activeStart, activeEnd)
+        p.windup = Motion.windup(f.st, activeStart, p.ext)
     elseif f.state == 'jumpatk' then
         p.move = 4
         p.ext = 1

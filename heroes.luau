@@ -35,6 +35,38 @@ local function hand(p: P.Pose, front: boolean, sx: number, sy: number, ix: numbe
     if p.hurt then
         return sx - 10, sy - 14 + (if front then 0 else 3)
     end
+    if m >= 1 and m <= 3 and p.style ~= '' then
+        local k, u = p.style, p.stroke
+        local tx, ty = ix, iy
+        if k == 'robin' then
+            local angle = if m == 1 then 0 elseif m == 2 then .15 + ePos * (-.85 + u * 1.4) - p.windup * .5 else .15 - p.windup * 1.55 + ePos * .25
+            local x = 14 + ePos * (if m == 1 then 18 else 12) - eNeg * 20
+            local y = sy + 8 - (if m == 3 then p.windup * 18 else 0)
+            return x - (if front then 0 else math.cos(angle) * 18), y - (if front then 0 else math.sin(angle) * 18)
+        elseif k == 'cyborg' then
+            if m == 3 then
+                tx, ty = sx + 47, sy + 35
+                ix, iy = ix + p.windup * 4, iy - p.windup * 68
+            elseif (m == 1 and front) or (m == 2 and not front) then
+                tx = sx + (if m == 1 then 51 else 32)
+                ty = sy + (if m == 1 then 18 else 20 - u * 52)
+            else return sx + 8, sy + 14 end
+        elseif k == 'starfire' then
+            if m == 3 or (m == 1 and front) or (m == 2 and not front) then
+                tx, ty = sx + 36, sy + (if m == 2 then 12 - u * 32 else (if front then 5 else -8))
+            else return sx - 6, sy + 18 end
+        elseif k == 'raven' then
+            tx = sx + (if m == 3 then 28 else 18)
+            ty = sy + (if m == 1 then 18 - u * 12 elseif m == 2 then 24 - u * 40 else (if front then 9 else -9))
+        elseif k == 'beast' then
+            if m == 3 or (m == 1 and front) or (m == 2 and not front) then
+                tx = sx + (if m == 3 then 36 else 29)
+                ty = sy + (if m == 2 then 22 - u * 30 else -14 + u * 35)
+                ix, iy = sx - 7, sy - 13
+            else return sx - 5, sy + 14 end
+        end
+        return lerp(ix, tx, ePos) - eNeg * 20, lerp(iy, ty, ePos) + eNeg * 12
+    end
     if m == 1 or m == 6 then
         if front then
             return lerp(ix, sx + reach, ePos) - eNeg * 12, lerp(iy, sy + 3, ePos) - eNeg * 4
@@ -84,7 +116,10 @@ local function foot(p: P.Pose, front: boolean, hipX: number, hipY: number, restX
     local c = math.cos(p.phase)
     local dir = if front then 1 else -1
     local ePos = math.max(0, p.ext)
-    if p.move == 3 and front then
+    if p.move >= 1 and p.move <= 3 and p.style ~= '' then
+        local spread = if p.style == 'cyborg' then 9 elseif p.style == 'beast' then 10 else 5
+        return restX + dir * spread * ePos, if p.style == 'beast' and p.move == 3 and not front then -9 * ePos else 0
+    elseif p.move == 3 and front then
         local chamber = math.min(1, math.max(0, -p.ext) / 0.35)
         local reach = hipX + math.abs(hipY) * 1.03 + 3 - restX
         return lerp(restX, hipX + 12, chamber) + ePos * reach, lerp(0, hipY * 0.6, chamber) + (hipY + 4) * ePos
@@ -110,7 +145,8 @@ local function leanBegin(p: P.Pose, pivotY: number)
     if p.hurt then
         lean = -0.22
     elseif p.move ~= 0 and p.move ~= 5 then
-        lean = 0.19 * math.max(0, p.ext) - 0.32 * math.max(0, -p.ext)
+        local strength = if p.style == 'beast' then 0.38 elseif p.style == 'raven' then 0.04 elseif p.style == 'cyborg' then 0.12 else 0.19
+        lean = strength * math.max(0, p.ext) - 0.32 * math.max(0, -p.ext)
     end
     G.save()
     G.translate(0, pivotY)
@@ -149,7 +185,7 @@ local function mitt(x: number, y: number, r: number, c: Color, cuff: boolean)
 end
 
 local function glowHands(p: P.Pose, x1: number, y1: number, x2: number, y2: number, c: Color)
-    if p.move == 5 or (p.ext > 0.3 and p.move ~= 3 and p.move ~= 4) then
+    if p.move == 5 then
         if p.move == 2 then
             G.glow(x2, y2, 24, c, 0.85)
         else
@@ -157,6 +193,60 @@ local function glowHands(p: P.Pose, x1: number, y1: number, x2: number, y2: numb
         end
         if p.move == 5 then
             G.glow(x2, y2, 20, c, 0.7)
+        end
+    end
+end
+
+-- Draw normal weapons/effects in the same leaned coordinate frame as the hands.
+local function normalFx(p: P.Pose, fx: number, fy: number, bx: number, by: number)
+    local m = p.move
+    if m < 1 or m > 3 or p.style == '' then return end
+    local e, u = math.max(0, p.ext), p.stroke
+    if p.style == 'robin' then
+        local angle = if m == 1 then 0 elseif m == 2 then .15 + e * (-.85 + u * 1.4) - p.windup * .5 else .15 - p.windup * 1.55 + e * .25
+        local dx, dy = math.cos(angle), math.sin(angle)
+        G.line(fx - dx * 28, fy - dy * 28, fx + dx * 57, fy + dy * 57, 6, INK)
+        G.line(fx - dx * 28, fy - dy * 28, fx + dx * 57, fy + dy * 57, 3.3, H(0xC5CEDC))
+        G.line(fx - dx * 17, fy - dy * 17, fx + dx * 3, fy + dy * 3, 4, H(0x38475D))
+        G.oellipse(fx, fy, 4, 4, H(0x22B86C), 1.4)
+        if p.active then
+            G.line(fx + dx * 34 - 10, fy + dy * 34 - 7, fx + dx * 57 - 10, fy + dy * 57 - 7, 2, H(0xFFE04D))
+        end
+    elseif p.style == 'beast' then
+        -- Brief paw morphs: the gloves grow into green three-clawed hands.
+        for i = 1, 2 do
+            if m == 3 or (m == 1 and i == 1) or (m == 2 and i == 2) then
+                local x, y = if i == 1 then fx else bx, if i == 1 then fy else by
+                G.oellipse(x, y, 5 + e * 3, 5 + e * 2, H(0xA2E84A), 1.7)
+                for j = -1, 1 do
+                    G.poly({ x + 3, y + j * 4 - 2, x + 11 + e * 3, y + j * 4, x + 3, y + j * 4 + 2 }, H(0xF6F1D6), 1)
+                    if p.active then G.line(x + 16, y + j * 6 - 12, x + 23, y + j * 6 + 4, 1.8, H(0xC6FF92)) end
+                end
+            end
+        end
+    elseif p.active then
+        local x, y = if m == 2 then bx else fx, if m == 2 then by else fy
+        if p.style == 'cyborg' then
+            G.polyline({ x - 14, y - 18, x + 6, y - 12, x + 21, y + 2 }, 3, H(0x91EEF1))
+            if m == 3 then
+                G.polyline({ x + 5, y + 10, x + 24, y + 4, x + 38, y + 15 }, 3, H(0xD8FAFF))
+            end
+        elseif p.style == 'starfire' then
+            local radius = if m == 3 then 26 else 15
+            G.glow(x + radius * 0.7, y, radius, H(0x5CFF6A), .9)
+            G.ellipse(x + 9, y, radius * .65, radius * .48, H(0xDFFF9E))
+            G.poly({ x + 12, y - 7, x + radius * 2, y, x + 12, y + 7 }, H(0x9DFF76))
+            if m == 3 then G.glow(bx + 10, by, 21, H(0x5CFF6A), .8) end
+        elseif p.style == 'raven' then
+            local endX = x + (if m == 3 then 62 else 52)
+            local endY = y + (if m == 2 then 12 - u * 32 else 0)
+            G.contour({ x, y - 4, x + 18, y - 26, endX - 12, endY - 24, endX, endY,
+                endX - 17, endY - 7, x + 23, y + 16, x, y + 4, x - 4, y + 1, x - 4, y - 1, x, y - 4 }, H(0x241138), 1.5)
+            G.polyline({ x + 3, y, x + 24, y - 9, endX - 4, endY }, 2, H(0xB66BFF))
+            if m == 3 then
+                G.glow(endX - 7, endY, 22, H(0x8A3CFF), .65)
+                G.oellipse(endX - 7, endY, 8, 20, H(0x251332), 2)
+            end
         end
     end
 end
@@ -317,6 +407,7 @@ local function robin(p: P.Pose, titleFacing: boolean)
     local fex, fey = joint(fsx, fsy, fhx, fhy, if p.move == 0 then -6 else 3)
     stick(fsx, fsy, fex, fey, fhx, fhy, 4.5, R_SKIN)
     mitt(fhx, fhy, 4.2, R_GREEN, true)
+    normalFx(p, fhx, fhy, bhx, bhy)
     G.restore()
     G.restore()
 end
@@ -489,6 +580,9 @@ local function cyborg(p: P.Pose, titleFacing: boolean)
     else
         cyborgArm(p, true, -5, sh + 9, 10, hipY + 1)
         shoulderPad(-5, sh + 2, 0)
+        local fx, fy = hand(p, true, -5, sh + 9, 10, hipY + 1, 64)
+        local bx, by = hand(p, false, 13, sh + 9, 22, hipY - 7, 36)
+        normalFx(p, fx, fy, bx, by)
     end
     G.restore()
     G.restore()
@@ -616,6 +710,7 @@ local function beast(p: P.Pose, titleFacing: boolean)
     stick(fsx, fsy, fex, fey, fhx, fhy, 4, B_SUIT)
     G.oellipse(lerp(fex, fhx, 0.6), lerp(fey, fhy, 0.6), 4, 3.5, B_GREY, 1.6)
     mitt(fhx, fhy, 4.8, B_GREY, false)
+    normalFx(p, fhx, fhy, bhx, bhy)
     G.restore()
     G.restore()
 end
@@ -747,7 +842,7 @@ local function raven(p: P.Pose, titleFacing: boolean)
         G.line(-1, top + 10, -5, -3, 1.8, V_FOLD)
     end
     -- Let the kick emerge from the cloak so its direction matches the hitbox.
-    if p.move == 3 or p.move == 4 then
+    if p.move == 4 then
         local fx, fy = foot(p, true, 3, -30, 5)
         local kx, ky = joint(3, -32, fx, fy - 3, -3)
         stick(3, -32, kx, ky, fx, fy - 3, 6, INK)
@@ -773,6 +868,7 @@ local function raven(p: P.Pose, titleFacing: boolean)
         stick(fsx, fsy, ex, ey, fhx, fhy, 6.5, V_CLOAK)
         G.oellipse(fhx, fhy, 4.6, 4.6, V_SKIN, 2)
         glowHands(p, fhx, fhy, bhx, bhy, H(0x8A3CFF))
+        normalFx(p, fhx, fhy, bhx, bhy)
     end
     G.restore()
     G.restore()
@@ -935,6 +1031,7 @@ local function starfire(p: P.Pose, titleFacing: boolean)
     G.circle(lerp(fex, fhx, 0.55), lerp(fey, fhy, 0.55), 1.6, S_GEM)
     G.oellipse(fhx, fhy, 4, 4, S_SKIN, 1.8)
     glowHands(p, fhx, fhy, bhx, bhy, H(0x5CFF6A))
+    normalFx(p, fhx, fhy, bhx, bhy)
     G.restore()
     G.restore()
 end
@@ -963,6 +1060,7 @@ function HX.isHero(kind: string): boolean
 end
 
 function HX.draw(kind: string, p: P.Pose, titleFacing: boolean?)
+    p.style = if titleFacing then '' else kind
     if kind == 'robin' then
         robin(p, titleFacing == true)
     elseif kind == 'cyborg' then

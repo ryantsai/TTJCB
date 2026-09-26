@@ -2,6 +2,7 @@
 local makeMain = require('game').create
 local Art = require('art')
 local Motion = require('motion')
+local Attacks = require('attacks')
 
 local function step(app: any, frames: number)
     for _ = 1, frames do
@@ -66,6 +67,10 @@ return function(): Tests
             for _, timing in { { 0.28, 0.06, 0.15 }, { 0.42, 0.12, 0.24 } } do
                 local duration, first, last = timing[1], timing[2], timing[3]
                 expect(Motion.strike(0, duration, first, last)).is(0)
+                expect(Motion.windup(0, first, 0)).is(0)
+                expect(Motion.windup(first * .55, first, -.35)).is(1)
+                expect(Motion.windup(first, first, 1)).is(0)
+                expect(Motion.windup(duration, first, 0)).is(0)
                 expect(Motion.strike(first * 0.5, duration, first, last)).lessThan(0)
                 expect(Motion.strike(first, duration, first, last)).is(1)
                 expect(Motion.strike(last, duration, first, last)).is(1)
@@ -174,6 +179,63 @@ return function(): Tests
                     expect(front.vx * dir).greaterThan(0)
                     expect(app.g.slots[1].fighter.pose.move).is(1)
                     expect(app.g.slots[1].fighter.pose.flip).is(dir)
+                end
+            end
+        end)
+        test.case('all 15 normal moves chain, hit once during their window, and finish in either direction', function(expect)
+            for hero = 1, 5 do
+                for _, dir in { -1, 1 } do
+                    for combo = 1, 3 do
+                        local app = game(hero)
+                        face(app, dir)
+                        local f = app.g.slots[1].fighter
+                        local energy = app.g.slots[1].energy
+                        press(app, 74)
+                        -- Reach later moves through the real input buffer, without a target.
+                        for stage = 1, combo - 1 do
+                            for _ = 1, 15 do
+                                if f.st > .065 then break end
+                                step(app, 1)
+                            end
+                            press(app, 74)
+                            for _ = 1, 60 do
+                                if f.combo > stage then break end
+                                step(app, 1)
+                            end
+                            expect(f.combo).is(stage + 1)
+                        end
+                        local attack = Attacks.get(f.kind, combo)
+                        local opponent = target(app, dir * 55)
+                        local behind = target(app, -dir * 65)
+                        local distant = target(app, dir * (attack.reach + 70))
+                        local total = math.floor(attack.damage * f.power + .5)
+                        local sawActive = false
+                        for _ = 1, 75 do
+                            if f.state ~= 'attack' then break end
+                            step(app, 1)
+                            if f.state == 'attack' and f.st < attack.first then expect(opponent.hp).is(1000) end
+                            if f.pose.active then
+                                sawActive = true
+                                expect(f.pose.ext).is(1)
+                                expect(f.pose.move).is(combo)
+                                expect(f.pose.style).is(f.kind)
+                            end
+                            -- Keep a hittable target inside the box to catch repeat-hit bugs.
+                            opponent.x = f.x + dir * 55
+                            opponent.y = f.y
+                            opponent.z = 0
+                            opponent.invuln = 0
+                            if combo < 3 then opponent.state = 'target' end
+                        end
+                        expect(sawActive).is(true)
+                        expect(opponent.hp).is(1000 - total)
+                        expect(behind.hp).is(1000)
+                        expect(distant.hp).is(1000)
+                        expect(f.state).is('idle')
+                        expect(f.pose.active).is(false)
+                        expect(app.g.slots[1].energy).greaterThanOrEqual(energy)
+                        if combo == 3 then expect(opponent.state).is('down') end
+                    end
                 end
             end
         end)

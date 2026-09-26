@@ -29,13 +29,16 @@ Players can also drop in mid-game by pressing Start.
 
 ## The Titans
 
-| Titan | Special |
-|---|---|
-| Robin | Birdarang: a boomerang that hits on the way out and on the way back |
-| Cyborg | Sonic Cannon: a full-screen beam that hits several times |
-| Starfire | Starbolt Volley: three green energy bolts |
-| Raven | Dark Burst: an area blast around her ("Azarath Metrion Zinthos!") |
-| Beast Boy | Rhino Charge: turns into a rhino and plows through everyone |
+| Titan | Normal combo (X / J) | Special |
+|---|---|---|
+| Robin | Staff thrust → wide sweep → overhead staff | Birdarang: a boomerang that hits on the way out and on the way back |
+| Cyborg | Body blow → uppercut → hammer fists | Sonic Cannon: a full-screen beam that hits several times |
+| Starfire | Star palm → rising palm → double star burst | Starbolt Volley: three green energy bolts |
+| Raven | Shadow lash → rising shadow → dark palm | Dark Burst: an area blast around her ("Azarath Metrion Zinthos!") |
+| Beast Boy | Claw rake → back claw → twin claw pounce | Rhino Charge: turns into a rhino and plows through everyone |
+
+Press attack again during a strike to queue the next hit. Normal combos use no energy.
+Each Titan has different attack timing, reach, damage, and movement; the third hit knocks foes down.
 
 Energy fills over time and whenever you land or take a hit. Pizza heals.
 Clear five waves of Slade Bots and Heavy Bots across Jump City, then beat
@@ -52,6 +55,7 @@ Cinderblock.
 | `profiles.luau` | right-facing gameplay heads and trailing hair; mirrored when facing left |
 | `art.luau` | villains, Cinderblock, effects and the Jump City stage |
 | `pose.luau` | the animation pose shared by the drawing modules |
+| `attacks.luau` | per-Titan normal combos shared by combat and animation |
 | `motion.luau` | anticipation, impact and recovery timing shared by the game and pose review |
 | `gfx.luau` | drawing primitives: path pool, shapes, clipping, text |
 | `font.luau` | the stroke font, since Rive scripts have no text API |
