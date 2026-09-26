@@ -5,6 +5,7 @@
 local G = require('gfx')
 local P = require('pose')
 local Profile = require('profiles')
+local PowerArt = require('power_art')
 
 local HX = {}
 local H = G.hex
@@ -22,8 +23,9 @@ local function bob(p: P.Pose): number
     end
     local weight = math.abs(math.sin(p.phase)) * 3 * p.walk
     local anticipation = math.max(0, -p.ext) * 8
+    local crouch = if p.style == 'cyborg' and p.move == 8 then math.max(0, p.ext) * 28 else 0
     local strike = if p.move >= 1 and p.move <= 3 then math.max(0, p.ext) * 2 else 0
-    return weight + anticipation - strike - math.sin(p.t * 2.4) * 0.8 * (1 - p.walk)
+    return weight + anticipation + crouch - strike - math.sin(p.t * 2.4) * 0.8 * (1 - p.walk)
 end
 
 -- Where a hand goes: its idle spot (ix, iy), or wherever the move takes it.
@@ -34,6 +36,20 @@ local function hand(p: P.Pose, front: boolean, sx: number, sy: number, ix: numbe
     local m = p.move
     if p.hurt then
         return sx - 10, sy - 14 + (if front then 0 else 3)
+    end
+    if m == 8 or m == 9 then
+        local k = p.style
+        if k == 'robin' then
+            return if m == 8 then 12 else sx + 36, sy + (if front then 7 else 13)
+        elseif k == 'cyborg' then
+            if m == 9 then return sx + reach, sy + (if front then 3 else 9) end
+            return lerp(ix, sx + 34, ePos), lerp(iy, -9, ePos) - p.windup * 65
+        elseif k == 'starfire' then
+            if m == 9 then return sx + (if front then 29 else -23), sy - 24 * ePos - p.windup * 15 end
+            return sx + (if front then 38 * ePos else -15), sy + (if front then 3 else 12)
+        elseif k == 'raven' then
+            return sx + (if m == 9 then 12 else 23), sy - (if m == 9 then 27 * ePos else -7)
+        end
     end
     if m >= 1 and m <= 3 and p.style ~= '' then
         local k, u = p.style, p.stroke
@@ -142,7 +158,9 @@ end
 -- Lean the upper body around the hips.
 local function leanBegin(p: P.Pose, pivotY: number)
     local lean = p.walk * 0.08
-    if p.hurt then
+    if p.move == 8 or p.move == 9 then
+        lean = if p.style == 'starfire' and p.move == 8 then .38 * math.max(0, p.ext) else 0
+    elseif p.hurt then
         lean = -0.22
     elseif p.move ~= 0 and p.move ~= 5 then
         local strength = if p.style == 'beast' then 0.38 elseif p.style == 'raven' then 0.04 elseif p.style == 'cyborg' then 0.12 else 0.19
@@ -470,7 +488,7 @@ local function cyborgArm(p: P.Pose, front: boolean, sx: number, sy: number, ix: 
     G.oellipse(ex, ey, 6, 5.5, G.shade(C_GREY, k), 2)
     stick(ex, ey, ex, ey, hx, hy, 20, G.shade(C_GREY, k))
     G.line(lerp(ex, hx, 0.4), lerp(ey, hy, 0.4) - 3, lerp(ex, hx, 0.9), lerp(ey, hy, 0.9) - 3, 1.3, C_TRACE)
-    if front and p.move == 5 then
+    if front and (p.move == 5 or p.move == 9) then
         -- the Sonic Cannon: forearm becomes a barrel
         G.glow(hx + 6, hy, 30, H(0x9FE8FF), 0.9)
         G.oellipse(hx + 4, hy, 8, 8, C_GREY, 2)
@@ -1061,6 +1079,10 @@ end
 
 function HX.draw(kind: string, p: P.Pose, titleFacing: boolean?)
     p.style = if titleFacing then '' else kind
+    if not titleFacing and PowerArt.form(kind, p) then
+        PowerArt.effects(kind, p)
+        return
+    end
     if kind == 'robin' then
         robin(p, titleFacing == true)
     elseif kind == 'cyborg' then
@@ -1076,6 +1098,7 @@ function HX.draw(kind: string, p: P.Pose, titleFacing: boolean?)
             beast(p, titleFacing == true)
         end
     end
+    if not titleFacing then PowerArt.effects(kind, p) end
 end
 
 -- Head only, centred at (x, y), for the HUD and select screen.

@@ -23,7 +23,9 @@ Players can also drop in mid-game by pressing Start.
 | Move | Left stick / D-pad | W A S D | Arrow keys |
 | Attack (3-hit combo) | X | J | `,` or numpad 1 |
 | Jump (attack in the air to jump-kick) | A | K or Space | `.` or numpad 2 |
-| Special (uses 30 energy) | Y, B, RB or RT | L | `/` or numpad 3 |
+| Primary special (30 energy) | B / RB | L | `/` or numpad 3 |
+| Secondary special (40 energy) | Y | I | `;` |
+| Ultimate (100 energy / full meter) | RT | U | apostrophe (`'`) |
 | Join / pause / continue | Start | Enter | Right Shift or numpad Enter |
 | Back (menus) / quit (while paused) | B / Back | Esc | Right Ctrl |
 
@@ -40,7 +42,18 @@ Players can also drop in mid-game by pressing Start.
 Press attack again during a strike to queue the next hit. Normal combos use no energy.
 Each Titan has different attack timing, reach, damage, and movement; the third hit knocks foes down.
 
-Energy fills over time and whenever you land or take a hit. Pizza heals.
+| Titan | Secondary — Y | Ultimate — RT |
+|---|---|---|
+| Robin | Staff Cyclone: spins his staff to knock back nearby enemies on both sides | Birdarang Storm: three waves of returning birdarangs across three lanes |
+| Cyborg | Seismic Slam: crouches and punches the street, launching nearby enemies | Mega Sonic Cannon: a wide beam with five damage pulses |
+| Starfire | Comet Rush: a glowing forward dash punch | Star Nova: a charged explosion around her |
+| Raven | Shadow Grasp: pulls enemies in front of her closer | Soul Self: projects a giant raven spirit forward |
+| Beast Boy | Gorilla Smash: transforms into a gorilla for an area slam | T-Rex Rampage: becomes a charging dinosaur |
+
+Specials and ultimates can cancel a grounded normal attack. Tap the button once per cast;
+holding RT does not repeat the ultimate. Energy fills over time and whenever you land or
+take a hit. The HUD shows the cost and readiness of B, Y and RT; the full meter turns gold.
+Pizza heals.
 Clear five waves of Slade Bots and Heavy Bots across Jump City, then beat
 Cinderblock.
 
@@ -55,6 +68,8 @@ Cinderblock.
 | `profiles.luau` | right-facing gameplay heads and trailing hair; mirrored when facing left |
 | `art.luau` | villains, Cinderblock, effects and the Jump City stage |
 | `pose.luau` | the animation pose shared by the drawing modules |
+| `powers.luau` | secondary/ultimate names, costs, timing, reach and damage |
+| `power_art.luau` | ability effects, gorilla and T-Rex transformations |
 | `attacks.luau` | per-Titan normal combos shared by combat and animation |
 | `motion.luau` | anticipation, impact and recovery timing shared by the game and pose review |
 | `gfx.luau` | drawing primitives: path pool, shapes, clipping, text |

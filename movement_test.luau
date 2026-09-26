@@ -3,6 +3,7 @@ local makeMain = require('game').create
 local Art = require('art')
 local Motion = require('motion')
 local Attacks = require('attacks')
+local Powers = require('powers')
 
 local function step(app: any, frames: number)
     for _ = 1, frames do
@@ -59,6 +60,21 @@ end
 
 local function face(app: any, direction: number)
     press(app, if direction == 1 then 68 else 65)
+end
+
+local function pad(app: any, button: string, down: boolean)
+    local event: any = {
+        deviceId = 0, isStandardMapping = true, leftStick = Vector.xy(0, 0),
+        dpadLeft = false, dpadRight = false, dpadUp = false, dpadDown = false,
+        south = false, east = false, west = false, north = false,
+        rightShoulder = false, rightTriggerPressed = false, rightTrigger = 0,
+        start = false, forward = false, back = false,
+    }
+    if button == 'rt' then event.rightTrigger = if down then .9 else 0
+    elseif button == 'y' then event.north = down
+    elseif button == 'b' then event.east = down
+    elseif button == 'rb' then event.rightShoulder = down end
+    app.gamepadEvent(app, event)
 end
 
 return function(): Tests
@@ -289,6 +305,100 @@ return function(): Tests
                 expect(f.vx * dir).greaterThan(0)
                 expect(opponent.hp).lessThan(1000)
                 expect(f.pose.move).is(5)
+            end
+        end)
+        test.case('gamepad Y and RT trigger all ten powers, with correct cost, direction and friendly-fire filtering', function(expect)
+            for hero = 1, 5 do
+                for _, dir in { -1, 1 } do
+                    for _, ultimate in { false, true } do
+                        local app = game(hero)
+                        face(app, dir)
+                        local f = app.g.slots[1].fighter
+                        local slot = app.g.slots[1]
+                        slot.dev = 'pad0'
+                        slot.energy = 100
+                        local power = Powers.get(f.kind, ultimate)
+                        local front = target(app, dir * (if ultimate and hero ~= 5 then 250 else 100))
+                        local back = target(app, -dir * 100)
+                        local ally = target(app, dir * 110)
+                        ally.team = 1
+                        local oldFront = front.x
+                        pad(app, if ultimate then 'rt' else 'y', true)
+                        step(app, 1)
+                        expect(f.state).is(if ultimate then 'ultimate' else 'secondary')
+                        expect(f.pose.move).is(if ultimate then 9 else 8)
+                        expect(slot.energy).is(100 - power.cost)
+                        pad(app, if ultimate then 'rt' else 'y', false)
+                        local sawActive = false
+                        for _ = 1, 180 do
+                            step(app, 1)
+                            sawActive = sawActive or f.pose.active
+                            if f.state == 'idle' then break end
+                        end
+                        expect(sawActive).is(true)
+                        expect(front.hp).lessThan(1000)
+                        expect(ally.hp).is(1000)
+                        expect(f.state).is('idle')
+                        expect(f.vx).is(0)
+                        expect(f.vy).is(0)
+                        expect(f.pose.flip).is(dir)
+                        local radial = if ultimate then hero == 3 else hero == 1 or hero == 2 or hero == 5
+                        if radial then expect(back.hp).lessThan(1000)
+                        else expect(back.hp).is(1000) end
+                        if hero == 4 and not ultimate then
+                            expect((front.x - oldFront) * dir).lessThan(0)
+                        end
+                    end
+                end
+            end
+        end)
+        test.case('insufficient energy rejects powers, holding RT never repeats, and B/RB preserve the primary', function(expect)
+            for _, button in { 'y', 'rt' } do
+                local app = game(2)
+                local slot = app.g.slots[1]
+                slot.dev = 'pad0'
+                slot.energy = if button == 'y' then 39 else 99
+                pad(app, button, true)
+                step(app, 1)
+                expect(slot.fighter.state).is('idle')
+                expect(slot.denyT).greaterThan(0)
+                pad(app, button, false)
+                slot.energy = 100
+                pad(app, button, true)
+                step(app, 1)
+                expect(slot.fighter.state).is(if button == 'y' then 'secondary' else 'ultimate')
+                -- Even with a replenished meter and repeated held-axis events, one press casts once.
+                for _ = 1, 180 do
+                    slot.energy = 100
+                    pad(app, button, true)
+                    step(app, 1)
+                end
+                expect(slot.fighter.state).is('idle')
+                pad(app, button, false)
+                pad(app, button, true)
+                step(app, 1)
+                expect(slot.fighter.state).is(if button == 'y' then 'secondary' else 'ultimate')
+            end
+            for _, button in { 'b', 'rb' } do
+                local app = game(1)
+                app.g.slots[1].dev = 'pad0'
+                app.g.slots[1].energy = 100
+                pad(app, button, true)
+                step(app, 1)
+                expect(app.g.slots[1].fighter.state).is('special')
+                expect(app.g.slots[1].energy).is(70)
+            end
+        end)
+        test.case('keyboard secondary and ultimate bind separately and cancel normal attacks', function(expect)
+            for _, binding in { { key = 73, state = 'secondary', cost = 40 }, { key = 85, state = 'ultimate', cost = 100 } } do
+                local app = game(1)
+                app.g.slots[1].energy = 100
+                press(app, 74)
+                press(app, binding.key)
+                expect(app.g.slots[1].fighter.state).is(binding.state)
+                expect(app.g.slots[1].fighter.queued).is(false)
+                expect(app.g.slots[1].fighter.combo).is(0)
+                expect(app.g.slots[1].energy).lessThan(101 - binding.cost)
             end
         end)
         test.case('diagonal keyboard input is normalized and release restores one axis', function(expect)

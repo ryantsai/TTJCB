@@ -3,10 +3,10 @@
 --
 -- Controls (standard gamepad layout)
 --   Left stick / d-pad  move            A (south)   jump / confirm
---   X (west)            attack combo    Y (north), B (east), RB, RT  special
+--   X (west)            attack combo    B / RB special, Y secondary, RT ultimate
 --   Start               join / pause    Back / View  quit (while paused)
 -- Keyboard players
---   Keys 1: WASD move, J attack, K / Space jump, L special, Enter start, Esc back
+--   Keys 1: WASD move, J attack, K / Space jump, L special, I secondary, U ultimate, Enter start, Esc back
 --   Keys 2: arrows move, ',' attack, '.' jump, '/' special, Right Shift start,
 --           (numpad 1 / 2 / 3 and numpad Enter also work)
 
@@ -14,6 +14,7 @@ local G = require('gfx')
 local A = require('art')
 local Motion = require('motion')
 local Attacks = require('attacks')
+local Powers = require('powers')
 
 local W = G.W
 local H = G.H
@@ -108,14 +109,16 @@ local KEYS: { [number]: KeyBind } = {
     [87] = { dev = 'kb1', btn = 'U' }, [65] = { dev = 'kb1', btn = 'L' },
     [83] = { dev = 'kb1', btn = 'D' }, [68] = { dev = 'kb1', btn = 'R' },
     [74] = { dev = 'kb1', btn = 'x' }, [75] = { dev = 'kb1', btn = 'a' },
-    [32] = { dev = 'kb1', btn = 'a' }, [76] = { dev = 'kb1', btn = 'y' },
+    [32] = { dev = 'kb1', btn = 'a' }, [76] = { dev = 'kb1', btn = 'b' },
+    [73] = { dev = 'kb1', btn = 'y' }, [85] = { dev = 'kb1', btn = 'rt' },
     [257] = { dev = 'kb1', btn = 'start' }, [256] = { dev = 'kb1', btn = 'cancel' },
     [259] = { dev = 'kb1', btn = 'cancel' },
     [265] = { dev = 'kb2', btn = 'U' }, [263] = { dev = 'kb2', btn = 'L' },
     [264] = { dev = 'kb2', btn = 'D' }, [262] = { dev = 'kb2', btn = 'R' },
     [44] = { dev = 'kb2', btn = 'x' }, [46] = { dev = 'kb2', btn = 'a' },
-    [47] = { dev = 'kb2', btn = 'y' }, [321] = { dev = 'kb2', btn = 'x' },
-    [322] = { dev = 'kb2', btn = 'a' }, [323] = { dev = 'kb2', btn = 'y' },
+    [47] = { dev = 'kb2', btn = 'b' }, [321] = { dev = 'kb2', btn = 'x' },
+    [322] = { dev = 'kb2', btn = 'a' }, [323] = { dev = 'kb2', btn = 'b' },
+    [59] = { dev = 'kb2', btn = 'y' }, [39] = { dev = 'kb2', btn = 'rt' },
     [344] = { dev = 'kb2', btn = 'start' }, [335] = { dev = 'kb2', btn = 'start' },
     [345] = { dev = 'kb2', btn = 'cancel' }, [261] = { dev = 'kb2', btn = 'cancel' },
 }
@@ -577,6 +580,119 @@ local function updateSpecial(g: Game, f: Fighter, dt: number, dev: Device?)
     end
 end
 
+-- Secondary specials and ultimates -------------------------------------------------------
+local function radialPower(g: Game, f: Fighter, power: Powers.Power)
+    for _, d in g.fighters do
+        if d.team ~= f.team and not f.hit[d.id] and canBeHit(d) then
+            local dx = (d.x - f.x) / (power.reach + d.radius)
+            local dy = (d.y - f.y) / (power.depth + d.radius * .3)
+            if dx * dx + dy * dy <= 1 and math.abs(d.z - f.z) < 130 then
+                f.hit[d.id] = true
+                damage(g, f, d, power.damage * f.power, 340 * (if d.x == f.x then f.facing else sign(d.x - f.x)), true, power.launch)
+            end
+        end
+    end
+end
+
+local function requestPower(g: Game, f: Fighter, s: Slot, dev: Device?): boolean
+    local ultimate = pressed(dev, 'rt')
+    local secondary = pressed(dev, 'y')
+    if not ultimate and not secondary and not pressed(dev, 'b') then return false end
+    local cost = if ultimate then 100 elseif secondary then 40 else SPECIAL_COST
+    if s.energy < cost then
+        s.denyT = .5
+        return true
+    end
+    if not ultimate and not secondary then
+        startSpecial(g, f, s)
+        return true
+    end
+    local power = Powers.get(f.kind, ultimate)
+    s.energy -= power.cost
+    setState(f, if ultimate then 'ultimate' else 'secondary')
+    f.combo = 0
+    f.queued = false
+    f.vx, f.vy = 0, 0
+    f.invuln = math.max(f.invuln, if ultimate then power.duration else .35)
+    addFx(g, 'word', f.x, f.y, (if f.kind == 'beast' then (if ultimate then 220 else 174) else A.height(f.kind) * f.scale) + 45, 1.2, power.name, HEROES[f.hero].color, 21)
+    return true
+end
+
+local function updatePower(g: Game, f: Fighter, dt: number)
+    local ultimate = f.state == 'ultimate'
+    local power = Powers.get(f.kind, ultimate)
+    local t = f.st
+    local active = t >= power.first and t <= power.last
+    if ultimate then
+        if f.kind == 'robin' then
+            local times = { .25, .55, .85 }
+            while f.sp < #times and t >= times[f.sp + 1] do
+                f.sp += 1
+                for lane = -1, 1 do
+                    fireShot(g, f, 'bird', 850, power.damage * f.power, f.sp == 3, 1.6)
+                    g.shots[#g.shots].y += lane * 58
+                end
+            end
+        elseif f.kind == 'cyborg' then
+            local times = { .45, .65, .85, 1.05, 1.25 }
+            while f.sp < #times and t >= times[f.sp + 1] do
+                f.sp += 1
+                table.clear(f.hit)
+                sweep(g, f, power.reach, power.depth, 150, power.damage * f.power, if f.sp == 5 then 450 else 70, f.sp == 5, power.launch)
+                g.shake = math.max(g.shake, .13)
+            end
+        elseif f.kind == 'starfire' then
+            if t >= power.first and f.sp == 0 then
+                f.sp = 1
+                radialPower(g, f, power)
+                g.shake = math.max(g.shake, .4)
+            end
+        elseif f.kind == 'raven' then
+            if active then
+                local progress = (t - power.first) / (power.last - power.first)
+                sweep(g, f, power.reach * (.56 + progress * .44), power.depth, 180, power.damage * f.power, 430, true, power.launch)
+            end
+        elseif f.kind == 'beast' then
+            f.vx = if active then f.facing * 240 else 0
+            if active then
+                sweep(g, f, power.reach, power.depth, 180, power.damage * f.power, 480, true, power.launch)
+                if math.floor(t * 8) ~= math.floor((t - dt) * 8) then
+                    addFx(g, 'dust', f.x, f.y, 0, .5, '', G.WHITE, 2)
+                    g.shake = math.max(g.shake, .09)
+                end
+            end
+        end
+    else
+        if f.kind == 'starfire' then
+            f.vx = if active then f.facing * 490 else 0
+            if active then sweep(g, f, power.reach, power.depth, 100, power.damage * f.power, 360, true, power.launch) end
+        elseif f.kind == 'raven' then
+            if t >= power.first and f.sp == 0 then
+                f.sp = 1
+                for _, d in g.fighters do
+                    local dx = (d.x - f.x) * f.facing
+                    if d.team ~= f.team and canBeHit(d) and dx > 0 and dx < power.reach + d.radius and math.abs(d.y - f.y) < power.depth and d.z < 100 then
+                        f.hit[d.id] = true
+                        damage(g, f, d, power.damage * f.power, 0, false, 0)
+                        d.vx = -f.facing * 440
+                        d.vy = (f.y - d.y) * 4
+                    end
+                end
+            end
+        elseif active then
+            radialPower(g, f, power)
+            if f.sp == 0 then
+                f.sp = 1
+                g.shake = math.max(g.shake, if f.kind == 'robin' then .1 else .25)
+            end
+        end
+    end
+    if t >= power.duration then
+        f.vx, f.vy = 0, 0
+        setState(f, 'idle')
+    end
+end
+
 -- Players ------------------------------------------------------------------------------
 
 local function updatePlayer(g: Game, s: Slot, f: Fighter, dt: number)
@@ -586,6 +702,9 @@ local function updatePlayer(g: Game, s: Slot, f: Fighter, dt: number)
     local state = f.state
 
     s.energy = math.min(100, s.energy + dt * 4)
+
+    if (state == 'idle' or state == 'walk') and math.abs(mx) > .2 then f.facing = sign(mx) end
+    if (state == 'idle' or state == 'walk' or state == 'attack') and requestPower(g, f, s, dev) then return end
 
     if state == 'idle' or state == 'walk' then
         f.vx = mx * f.speed
@@ -604,12 +723,6 @@ local function updatePlayer(g: Game, s: Slot, f: Fighter, dt: number)
             addFx(g, 'dust', f.x, f.y, 0, 0.35, '', G.WHITE, 1)
         elseif pressed(dev, 'x') then
             startAttack(f, 1)
-        elseif pressed(dev, 'y') or pressed(dev, 'b') then
-            if s.energy >= SPECIAL_COST then
-                startSpecial(g, f, s)
-            else
-                s.denyT = 0.5
-            end
         end
     elseif state == 'air' or state == 'jumpatk' then
         f.vx = mx * f.speed * 0.85
@@ -634,12 +747,6 @@ local function updatePlayer(g: Game, s: Slot, f: Fighter, dt: number)
         if pressed(dev, 'x') and f.st > 0.06 then
             f.queued = true
         end
-        if pressed(dev, 'y') or pressed(dev, 'b') then
-            if s.energy >= SPECIAL_COST then
-                startSpecial(g, f, s)
-                return
-            end
-        end
         if f.st >= dur then
             if f.queued and f.combo < 3 then
                 startAttack(f, f.combo + 1)
@@ -648,6 +755,8 @@ local function updatePlayer(g: Game, s: Slot, f: Fighter, dt: number)
                 setState(f, 'idle')
             end
         end
+    elseif state == 'secondary' or state == 'ultimate' then
+        updatePower(g, f, dt)
     elseif state == 'special' then
         updateSpecial(g, f, dt, dev)
     end
@@ -939,6 +1048,7 @@ local function updatePose(g: Game, f: Fighter, dt: number)
     p.move = 0
     p.ext = 0
     p.style = f.kind
+    p.powerTime = f.st
     p.windup = 0
     p.stroke = 0
     p.active = false
@@ -953,6 +1063,12 @@ local function updatePose(g: Game, f: Fighter, dt: number)
     elseif f.state == 'jumpatk' then
         p.move = 4
         p.ext = 1
+    elseif f.state == 'secondary' or f.state == 'ultimate' then
+        local power = Powers.get(f.kind, f.state == 'ultimate')
+        p.move = if f.state == 'ultimate' then 9 else 8
+        p.ext = Motion.strike(f.st, power.duration, power.first, power.last)
+        p.windup = Motion.windup(f.st, power.first, p.ext)
+        p.active = f.st >= power.first and f.st <= power.last
     elseif f.state == 'special' then
         p.move = 5
         p.ext = 1
@@ -1459,7 +1575,7 @@ local function drawFighter(g: Game, f: Fighter)
     G.save()
     G.translate(sx, sy)
     G.scale(f.facing * f.scale, f.scale)
-    if f.invuln > 0 and f.state ~= 'special' and math.floor(g.t * 20) % 2 == 0 then
+    if f.invuln > 0 and f.state ~= 'special' and f.state ~= 'secondary' and f.state ~= 'ultimate' and math.floor(g.t * 20) % 2 == 0 then
         G.opacity(0.45)
     end
     if f.state == 'ko' and f.team == 2 then
@@ -1478,7 +1594,7 @@ local function drawFighter(g: Game, f: Fighter)
         A.beam(sx + f.facing * ox * f.scale, sy + oy * f.scale, 1150 * p, g.t, f.facing, 1 - math.max(0, f.st - 0.7) * 6)
     end
 
-    local top = A.height(f.kind) * f.scale
+    local top = (if f.kind == 'beast' and f.state == 'ultimate' then 185 elseif f.kind == 'beast' and f.state == 'secondary' then 145 else A.height(f.kind)) * f.scale
     if f.slot > 0 then
         local s = g.slots[f.slot]
         local ty = sy - top - 30
@@ -1514,7 +1630,7 @@ local function drawWorld(g: Game)
         end
     end
     for _, f in g.fighters do
-        A.shadow(f.x - g.camX, f.y, (f.radius + 8) * (if f.kind == 'beast' and f.state == 'special' then 2 else 1), f.z)
+        A.shadow(f.x - g.camX, f.y, (f.radius + 8) * (if f.kind == 'beast' and (f.state == 'special' or f.state == 'secondary' or f.state == 'ultimate') then 2 else 1), f.z)
     end
     for _, s in g.shots do
         A.shadow(s.x - g.camX, s.y, 12, s.z)
@@ -1589,7 +1705,7 @@ local function drawHud(g: Game)
         local w = 305
         G.save()
         G.opacity(0.9)
-        G.rrect(x, y, w, 78, 12, G.hex(0x1C1330), 3)
+        G.rrect(x, y, w, 92, 12, G.hex(0x1C1330), 3)
         G.restore()
         G.rrect(x + 3, y + 3, w - 6, 6, 3, s.color)
         if s.dev == '' then
@@ -1616,14 +1732,14 @@ local function drawHud(g: Game)
                 local hc = if hp > 0.5 then G.hex(0x3BD16F) elseif hp > 0.25 then G.hex(0xFFC21A) else G.hex(0xFF4D5E)
                 bar(x + 78, y + 40, 212, 11, hp, hc)
                 local ready = s.energy >= SPECIAL_COST
-                local ec = if ready then G.hex(0x7FD8FF) else G.hex(0x3A6FB0)
+                local ec = if s.energy >= 100 then G.hex(0xFFE14D) elseif ready then G.hex(0x7FD8FF) else G.hex(0x3A6FB0)
                 if s.denyT > 0 and math.floor(g.t * 16) % 2 == 0 then
                     ec = G.hex(0xFF4D5E)
                 end
                 bar(x + 78, y + 60, 150, 7, s.energy / 100, ec)
-                if ready and math.floor(g.t * 3) % 2 == 0 then
-                    G.text('SP', x + 236, y + 57, 11, G.hex(0x7FD8FF))
-                end
+                G.text('B 30', x + 78, y + 76, 9, if s.energy >= 30 then G.hex(0x7FD8FF) else G.hex(0x655974))
+                G.text('Y 40', x + 133, y + 76, 9, if s.energy >= 40 then G.hex(0x7FD8FF) else G.hex(0x655974))
+                G.text('RT 100', x + 190, y + 76, 9, if s.energy >= 100 then G.hex(0xFFE14D) else G.hex(0x655974))
                 G.text(`x{s.lives}`, x + w - 12, y + 57, 13, G.WHITE, 1)
             end
         end
@@ -1693,7 +1809,7 @@ local function drawTitle(g: Game)
             pads += 1
         end
     end
-    G.text('X: ATTACK   A: JUMP   Y / B: SPECIAL   START: JOIN / PAUSE', W / 2, 676, 14, G.hex(0xCFC6D8), 0.5)
+    G.text('X: ATTACK   A: JUMP   B: SPECIAL   Y: SECONDARY   RT: ULTIMATE   START: JOIN / PAUSE', W / 2, 676, 14, G.hex(0xCFC6D8), 0.5)
     G.text(`1-4 PLAYERS   CONTROLLERS CONNECTED: {pads}`, W / 2, 698, 12, G.hex(0x8D839E), 0.5)
     G.text('UNOFFICIAL FAN GAME', W - 16, H - 22, 11, G.hex(0x8D839E), 1)
 end
@@ -1715,7 +1831,7 @@ local function drawSelect(g: Game)
         local x = 24 + (s.idx - 1) * 312
         local y = 96
         local w = 296
-        local h = 450
+        local h = 482
         G.save()
         G.opacity(0.92)
         G.rrect(x, y, w, h, 16, G.hex(0x1C1330), 3)
@@ -1734,22 +1850,20 @@ local function drawSelect(g: Game)
             G.glow(x + w / 2, y + 220, 120, hero.color, 0.5)
             local p = A.newPose()
             p.t = g.t + s.idx
-            if s.locked then
-                p.move = 5
-                p.ext = 1
-            end
             A.shadow(x + w / 2, y + 300, 44, 0)
             G.save()
             G.translate(x + w / 2, y + 300)
             G.scale(1.65, 1.65)
-            A.fighter(hero.key, p)
+            A.fighter(hero.key, p, true)
             G.restore()
             local taken = heroTaken(g, s.hero, s)
             G.text(hero.name, x + w / 2, y + 318, 26, if taken then G.hex(0x8D839E) else hero.color, 0.5)
             statBar(x + 30, y + 360, 'POWER', (hero.power - 0.8) / 0.5, G.hex(0xFF4D5E))
             statBar(x + 30, y + 380, 'SPEED', (hero.speed - 180) / 120, G.hex(0x3BD16F))
             statBar(x + 30, y + 400, 'HEALTH', (hero.hp - 80) / 70, G.hex(0x3A9BFF))
-            G.text(hero.special, x + w / 2, y + 424, 12, G.hex(0xFFE14D), 0.5)
+            G.text('B: ' .. hero.special, x + w / 2, y + 423, 10, G.hex(0xFFE14D), 0.5)
+            G.text('Y: ' .. Powers.secondary[hero.key].name, x + w / 2, y + 442, 10, G.hex(0x7FD8FF), 0.5)
+            G.text('RT: ' .. Powers.ultimate[hero.key].name, x + w / 2, y + 461, 10, G.hex(0xD5AEFF), 0.5)
             if s.locked then
                 G.save()
                 G.translate(x + w / 2, y + 262)
@@ -1963,16 +2077,18 @@ function gamepadEvent(self: Main, e: GamepadEvent)
     setButton(d, 'D', d.my > 0.5)
     if std then
         setButton(d, 'a', e.south)
-        setButton(d, 'b', e.east)
+        setButton(d, 'b', e.east or e.rightShoulder)
         setButton(d, 'x', e.west)
-        setButton(d, 'y', e.north or e.rightShoulder or e.rightTriggerPressed or e.rightTrigger > 0.5)
+        setButton(d, 'y', e.north)
+        setButton(d, 'rt', e.rightTriggerPressed or e.rightTrigger > 0.5)
         setButton(d, 'start', e.start or e.forward)
         setButton(d, 'back', e.back)
     else
         setButton(d, 'a', e:buttonPressed(1))
-        setButton(d, 'b', e:buttonPressed(2))
+        setButton(d, 'b', e:buttonPressed(2) or e:buttonPressed(6))
         setButton(d, 'x', e:buttonPressed(3))
-        setButton(d, 'y', e:buttonPressed(4) or e:buttonPressed(6) or e:buttonPressed(8))
+        setButton(d, 'y', e:buttonPressed(4))
+        setButton(d, 'rt', e:buttonPressed(8))
         setButton(d, 'start', e:buttonPressed(10))
         setButton(d, 'back', e:buttonPressed(9))
     end
