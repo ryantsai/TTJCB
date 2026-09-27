@@ -1,7 +1,9 @@
 import { Rive, Layout, Fit, Alignment, RuntimeLoader } from '@rive-app/webgl2';
 import { connectProgress } from './progress-storage.mjs';
 
-RuntimeLoader.setWasmUrl(new URL('./rive.wasm', location.href).href);
+const releaseVersion = new URL(import.meta.url).searchParams.get('v');
+const assetUrl = name => new URL(`${name}${releaseVersion ? `?v=${releaseVersion}` : ''}`, location.href).href;
+RuntimeLoader.setWasmUrl(assetUrl('./rive.wasm'));
 const canvas = document.querySelector('#game');
 const notice = document.querySelector('#notice');
 const fullscreen = document.querySelector('#fullscreen');
@@ -33,7 +35,7 @@ function forwardKey(event) {
 canvas.addEventListener('keydown', forwardKey, { capture: true });
 canvas.addEventListener('keyup', forwardKey, { capture: true });
 const game = new Rive({
-  src: new URL('./game.riv', location.href).href,
+  src: assetUrl('./game.riv'),
   canvas, artboard: 'main', stateMachines: 'Game', autoplay: false, autoBind: true,
   layout: new Layout({ fit: Fit.Layout, alignment: Alignment.Center }),
   onLoad() {

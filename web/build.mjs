@@ -1,6 +1,7 @@
 import { build } from 'esbuild';
-import { mkdir, copyFile, rm } from 'node:fs/promises';
+import { mkdir, copyFile, readFile, writeFile, rm } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const web = path.dirname(fileURLToPath(import.meta.url));
@@ -26,10 +27,19 @@ if (!hostOnly) {
 await mkdir(dist, { recursive: true });
 await build({ entryPoints: [path.join(web, 'game.mjs')], bundle: true, minify: true,
   format: 'esm', target: 'es2022', outfile: path.join(dist, 'game.js') });
+const fontPath = path.join(root, 'assets/fonts/noto-sans-tc-700.woff2');
+const releaseHash = createHash('sha256');
+releaseHash.update(await readFile(path.join(dist, 'game.js')));
+releaseHash.update(await readFile(fontPath));
+if (signedPath) releaseHash.update(await readFile(signedPath));
+const releaseVersion = releaseHash.digest('hex').slice(0, 12);
+const index = (await readFile(path.join(web, 'index.html'), 'utf8'))
+  .replace('./game.js', `./game.js?v=${releaseVersion}`)
+  .replace('./noto-sans-tc.woff2', `./noto-sans-tc.woff2?v=${releaseVersion}`);
 await Promise.all([
-  copyFile(path.join(web, 'index.html'), path.join(dist, 'index.html')),
+  writeFile(path.join(dist, 'index.html'), index),
   copyFile(path.join(web, 'node_modules/@rive-app/webgl2/rive.wasm'), path.join(dist, 'rive.wasm')),
-  copyFile(path.join(root, 'assets/fonts/noto-sans-tc-700.woff2'), path.join(dist, 'noto-sans-tc.woff2')),
+  copyFile(fontPath, path.join(dist, 'noto-sans-tc.woff2')),
 ]);
 if (hostOnly) {
   await rm(path.join(dist, 'game.riv'), { force: true });
