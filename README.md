@@ -186,11 +186,17 @@ and signs the scripts, so signing requires a logged-in session and network acces
 If authentication fails, the build stops before copying a game file into the host.
 
 The published site is [ryantsai.github.io/TTJCB](https://ryantsai.github.io/TTJCB/).
-To publish a new version, run `python3 tools/publish_github_pages.py` from the
-project root. It signs the current Rive sources, builds the host and pushes the
-release files to the `gh-pages` branch. The GitHub Pages source is that branch's
-root. The source checkout stays on `main`; only the compiled site is on
-`gh-pages`. This script requires the local Rive and GitHub CLI logins.
+GitHub Pages deploys `site/` through `.github/workflows/pages.yml` on every push
+to `main`, or manually through the workflow's Run workflow button. Both game
+sources and the signed release assets live on `main`; no deployment branch is
+needed.
+
+To release game changes, run `python3 tools/publish_github_pages.py` from the
+project root, review and commit the source changes together with `site/`, then
+push `main`. The script signs the current Rive sources and refreshes `site/`
+without committing or pushing. Signing requires the local Rive login; GitHub
+Actions deploys the committed release without Rive credentials. A source-only
+push redeploys the last prepared release, so regenerate `site/` for game changes.
 
 Use **`rive .` for authoring previews**. Unsigned local builds cannot play in web
 runtimes. `npm run build:host` checks the host bundle without signing and omits
