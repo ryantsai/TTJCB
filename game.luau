@@ -24,6 +24,8 @@ local Progress = require('progress')
 local LevelMap = require('level_map')
 local BrowserInput = require('browser_input')
 local Hazards = require('hazards')
+local BossPatterns = require('boss_patterns')
+local Features = require('level_features')
 
 local W = G.W
 local H = G.H
@@ -168,6 +170,8 @@ type Fighter = {
     hitT: number,
     move: number,
     voice: Remarks.Voice,
+    pattern: BossPatterns.Attack?, signatureCd: number,
+    boost: string, boostT: number, boostTick: number, boostCharges: number, slowT: number,
 }
 
 type Slot = {
@@ -213,7 +217,7 @@ type Fx = {
     size: number,
 }
 
-type Pickup = { x: number, y: number, t: number, dead: boolean }
+type Pickup = { x: number, y: number, t: number, dead: boolean, kind: string? }
 
 type Game = {
     locale: L.Locale,
@@ -231,7 +235,7 @@ type Game = {
     demo: Game?,
     menuHover: string,
     stage: number,
-    hazardCycle: number, hazardHits: { [number]: boolean },
+    hazardCycle: number, hazardHits: { [number]: boolean }, hazardMuted: number,
     healthPlayers: number,
     wavePlayers: number,
     modeT: number,
@@ -318,7 +322,7 @@ local function newGame(): Game
         progress = Progress.new(), selectedLevel = 1, runLevel = 1, mapCleared = 0,
         resetConfirm = false, resetYes = false,
         tutorialSeen = false, tutorialReturn = 'title', tutorial = nil, demo = nil, menuHover = '',
-        mode = 'title', stage = 1, hazardCycle = -1, hazardHits = {}, healthPlayers = 1, wavePlayers = 1, modeT = 0, t = 0, devs = {}, slots = slots, fighters = {}, shots = {},
+        mode = 'title', stage = 1, hazardCycle = -1, hazardHits = {}, hazardMuted = 0, healthPlayers = 1, wavePlayers = 1, modeT = 0, t = 0, devs = {}, slots = slots, fighters = {}, shots = {},
         fx = {}, pickups = {}, camX = 0, lockX = -1, cp = 1, pending = {}, waveT = 0, goT = 0,
         shake = 0, paused = false, nextId = 1, continueT = 0, banner = '',
         bannerSub = '', bannerT = 0, selectT = -1, boss = nil,
@@ -388,6 +392,7 @@ end
 
 local function setState(f: Fighter, s: string)
     f.state = s
+    if s~='signature' then f.pattern=nil end
     f.st = 0
     f.sp = 0
     table.clear(f.hit)
@@ -404,10 +409,10 @@ end
 -- A readable conversation budget in co-op: two speakers at once. Important
 -- reactions can displace lesser chatter, but never interrupt an urgent warning.
 local function remark(g: Game, f: Fighter, event: string): boolean
-    if f.team~=1 or f.removed then return false end
+    if (f.team~=1 and not Remarks.bossLines[f.kind]) or f.removed then return false end
     local active, weakest = 0, nil :: Fighter?
     for _,other in g.fighters do
-        if other~=f and other.team==1 and not other.removed and other.voice.time>0 then
+        if other~=f and not other.removed and other.voice.time>0 then
             active+=1
             if not weakest or other.voice.priority<weakest.voice.priority then weakest=other end
         end
@@ -438,6 +443,7 @@ local function newFighter(g: Game, kind: string, team: number, x: number, y: num
         pose = A.newPose(), ai = rnd(0.5, 2), cd = rnd(0.6, 1.6), armor = 0, removed = false,
         sp = 0, entering = false, hitT = 99, move = 0,
         voice = Remarks.new(g.nextId*7919+math.floor(g.t*1000)),
+        pattern=nil,signatureCd=3,boost='',boostT=0,boostTick=0,boostCharges=0,slowT=0,
     }
     g.nextId += 1
     local e = ENEMIES[kind]
@@ -479,6 +485,14 @@ end
 -- Combat -----------------------------------------------------------------------------
 
 local function damage(g: Game, att: Fighter, d: Fighter, dmg: number, kbx: number, knock: boolean, launch: number, projectile: boolean?)
+    if d.team==1 and d.boost=='shield' and d.boostT>0 and d.boostCharges>0 then
+        d.boostCharges-=1;d.invuln=math.max(d.invuln,.4)
+        addFx(g,'word',d.x,d.y,150,.65,'SHIELD BLOCK',G.hex(0xDB9BFF),16)
+        if d.boostCharges==0 then d.boostT=0 end
+        return
+    end
+    if att.team==1 and att~=d and att.boost=='gauntlet' and att.boostT>0 and not projectile
+        and (att.state=='attack' or att.state=='dashatk' or att.state=='jumpatk') then dmg*=1.5 end
     -- A guard blocks frontal light hits; flank, jump over it, or use a knockdown.
     if (d.kind == 'shield' or d.kind == 'gordanian') and not knock and d.state ~= 'hurt' and d.state ~= 'down'
         and (att.x - d.x) * d.facing > 0 and att.z < 35 then
@@ -489,7 +503,7 @@ local function damage(g: Game, att: Fighter, d: Fighter, dmg: number, kbx: numbe
     d.hp -= dmg
     d.flash = 0.14
     d.hitT = 0
-    if d.team==1 then
+    if d.team==1 or Remarks.bossLines[d.kind] then
         if d.hp<=0 then remark(g,d,'down')
         elseif d.hp<=d.maxHp*.25 and not d.voice.danger then
             if remark(g,d,'low_health') then d.voice.danger=true end
@@ -1006,7 +1020,48 @@ local function updateTrigon(g:Game,f:Fighter,dt:number)
     end
 end
 
+local function updateSignature(g:Game,f:Fighter,dt:number):boolean
+    if not BossPatterns.labels[f.kind] then return false end
+    f.signatureCd=math.max(0,f.signatureCd-dt)
+    if f.state=='signature' then
+        local a=f.pattern
+        if not a then setState(f,'idle');return true end
+        a.t=f.st;f.vx=0;f.vy=0
+        if a.kind=='mammoth' or a.kind=='slade' then f.x,f.y=BossPatterns.position(a,a.t) end
+        for _,z in a.zones do
+            for _,h in g.fighters do
+                local key=`{z.phase}:{h.id}`
+                if h.team==1 and canBeHit(h) and not a.hits[key] and BossPatterns.hits(a,z,h.x,h.y,h.z) then
+                    a.hits[key]=true
+                    if a.kind~='madmod' or h.boost~='jammer' or h.boostT<=0 then
+                        local hp=h.hp
+                        damage(g,f,h,if a.kind=='blood' or a.kind=='madmod' then 12 else f.dmg,sign(h.x-f.x)*180,a.kind=='mammoth',260,true)
+                        if h.hp<hp then
+                            if a.kind=='madmod' then h.slowT=2 end
+                            if a.kind=='blood' then g.slots[h.slot].energy=math.max(0,g.slots[h.slot].energy-25) end
+                        end
+                    end
+                end
+            end
+        end
+        if a.t>=a.total then setState(f,'idle');f.cd=1.2;f.signatureCd=6 end
+        return true
+    end
+    if f.signatureCd<=0 and f.cd<=0 and not f.entering and (f.state=='idle' or f.state=='walk') then
+        local target=nearestHero(g,f)
+        if target then
+            setState(f,'signature');f.vx=0;f.vy=0;f.facing=sign(target.x-f.x)
+            f.pattern=BossPatterns.new(f.kind,f.x,f.y,target.x,target.y,g.camX)
+            f.signatureCd=6
+            remark(g,f,'special')
+            return true
+        end
+    end
+    return false
+end
+
 local function updateEnemy(g: Game, f: Fighter, dt: number)
+    if updateSignature(g,f,dt) then return end
     if f.kind=='trigon' then updateTrigon(g,f,dt);return end
     local state = f.state
     local behavior = ENEMIES[f.kind].behavior
@@ -1209,6 +1264,11 @@ local function updateShots(g: Game, dt: number)
                 end
             end
         end
+        if s.owner.team==2 then
+            for _,h in g.fighters do
+                if h.team==1 and h.hp>0 and h.boost=='ward' and h.boostT>0 and math.abs(s.x-h.x)<180 and math.abs(s.y-h.y)<90 then s.dead=true end
+            end
+        end
         s.x += s.vx * dt
         if s.t > s.life or s.x < g.camX - 120 or s.x > g.camX + W + 120 then
             s.dead = true
@@ -1385,6 +1445,9 @@ local function updatePose(g: Game, f: Fighter, dt: number)
         else
             p.ext = math.max(0, 1 - (f.st - w - 0.1) / 0.35)
         end
+    elseif f.state == 'signature' then
+        p.move=if f.kind=='mammoth' then 7 else 6
+        p.ext=if f.st<1 then -.8 else .9
     elseif f.state == 'slam' then
         p.move = 7
         p.ext = if f.st < 0.65 then -1 else 1
@@ -1419,6 +1482,8 @@ local function spawnEnemy(g: Game, kind: string, side: number)
         g.boss = f
         g.banner = tr(g, ENEMIES[kind].name) .. (if g.locale == 'zh-TW' then '！' else '!')
         g.bannerSub = if kind == 'boss' then 'JUMP OVER THE SHOCKWAVE' elseif kind == 'mammoth' then 'SIDESTEP HIS CHARGE' elseif kind == 'jinx' then 'DODGE THE HEX VOLLEY' elseif kind=='trigon' then 'JUMP THE SLAM - DODGE THE FIRE' else 'BOSS BATTLE'
+        if BossPatterns.labels[kind] then g.bannerSub=BossPatterns.labels[kind] end
+        remark(g,f,'encounter')
         g.bannerT = 2.2
         g.shake = 0.4
     end
@@ -1462,7 +1527,7 @@ local function syncCoopDifficulty(g: Game)
 end
 
 local function beginCheckpoint(g: Game, cp: Checkpoint)
-    g.hazardCycle=-1;table.clear(g.hazardHits)
+    g.hazardCycle=-1;g.hazardMuted=0;table.clear(g.hazardHits)
     g.stage = cp.stage
     g.lockX = cp.x
     g.waveT = 0
@@ -1473,6 +1538,10 @@ local function beginCheckpoint(g: Game, cp: Checkpoint)
     end
     g.wavePlayers = 1
     addCoopReinforcements(g, cp, n)
+    local equipment=Features.defs[cp.stage]
+    if equipment then
+        table.insert(g.pickups,{x=cp.x+600,y=610,t=0,dead=false,kind=equipment.kind})
+    end
     if cp.pizza then
         table.insert(g.pickups, { x = cp.x + rnd(300, 900), y = rnd(FMIN + 30, FMAX - 30), t = 0, dead = false })
     end
@@ -1790,6 +1859,7 @@ local function updatePlay(g: Game, dt: number)
     g.goT = math.max(0, g.goT - dt)
     g.bannerT = math.max(0, g.bannerT - dt)
     g.shake = math.max(0, g.shake - dt)
+    g.hazardMuted=math.max(0,g.hazardMuted-dt)
 
     for _, f in g.fighters do
         -- Determine every actor's time slice before combat. New impacts take
@@ -1798,8 +1868,9 @@ local function updatePlay(g: Game, dt: number)
         f.hitPause = math.max(0, f.hitPause - dt)
         f.flash = math.max(0, f.flash - dt)
         f.hitT += dt
+        Remarks.update(f.voice,dt)
+        f.slowT=math.max(0,f.slowT-dt)
         if f.team==1 then
-            Remarks.update(f.voice,dt)
             if f.hp>f.maxHp*.4 then f.voice.danger=false end
         end
     end
@@ -1826,6 +1897,7 @@ local function updatePlay(g: Game, dt: number)
                 end
                 table.clear(f.buffered)
                 updatePlayer(g, s, f, f.stepDt)
+                if f.slowT>0 then f.vx*=.5;f.vy*=.5 end
             end
         end
     end
@@ -1861,8 +1933,30 @@ local function updatePlay(g: Game, dt: number)
         end
     end
 
+    for _,h in g.fighters do
+        if h.team==1 and h.hp>0 and not h.removed and h.boostT>0 then
+            h.boostT=math.max(0,h.boostT-dt);h.boostTick-=dt
+            if h.boost=='ward' then h.hp=math.min(h.maxHp,h.hp+2*dt) end
+            if h.boostTick<=0 then
+                h.boostTick=1.2
+                if h.boost=='drone' then
+                    local target:Fighter?=nil
+                    for _,e in g.fighters do if e.team==2 and e.hp>0 and not e.removed and (not target or math.abs(e.x-h.x)<math.abs(target.x-h.x)) then target=e end end
+                    if target then
+                        fireShot(g,h,'laser',600,12,false,2)
+                        local shot=g.shots[#g.shots];shot.y=target.y;shot.z=65;shot.vx=sign(target.x-h.x)*600;shot.x=h.x
+                    end
+                elseif h.boost=='amplifier' then
+                    addFx(g,'wave',h.x,h.y,0,.4,'',G.hex(0x51EEE2),1)
+                    for _,e in g.fighters do
+                        if e.team==2 and canBeHit(e) and math.abs(e.x-h.x)<180 and math.abs(e.y-h.y)<70 then damage(g,h,e,14,sign(e.x-h.x)*160,false,0,true) end
+                    end
+                end
+            end
+        end
+    end
     updateShots(g, dt)
-    if g.lockX>=0 then
+    if g.lockX>=0 and g.hazardMuted<=0 then
         local zone=Hazards.zone(g.stage,CHECKPOINTS[g.cp].wave,g.waveT)
         if zone then
             if zone.cycle~=g.hazardCycle then g.hazardCycle=zone.cycle;table.clear(g.hazardHits) end
@@ -1915,17 +2009,27 @@ local function updatePlay(g: Game, dt: number)
         end
     end
 
-    -- pizza!
+    -- Shared health pickups and distinct stage equipment.
     for _, p in g.pickups do
         p.t += dt
         for _, s in g.slots do
             local f = s.fighter
             if f and not p.dead and alive(f) and f.z < 30 and math.abs(f.x - p.x) < 34 and math.abs(f.y - p.y) < 22 then
                 p.dead = true
-                f.hp = math.min(f.maxHp, f.hp + 45)
-                s.score += 100
-                addFx(g, 'word', p.x, p.y, 70, 0.9, 'PIZZA!', G.hex(0xFFD34D), 26)
-                remark(g,f,'heal')
+                local equipment=if p.kind then Features.get(p.kind) else nil
+                if equipment then
+                    if equipment.kind=='capacitor' then s.energy=math.min(100,s.energy+60)
+                    else
+                        f.boost=equipment.kind;f.boostT=equipment.duration;f.boostTick=0;f.boostCharges=if equipment.kind=='shield' then 3 else 0
+                        if equipment.kind=='jammer' then g.hazardMuted=equipment.duration;f.slowT=0 end
+                    end
+                    addFx(g,'word',p.x,p.y,100,1.7,equipment.name,G.hex(equipment.color),16)
+                else
+                    f.hp = math.min(f.maxHp, f.hp + 45)
+                    s.score += 100
+                    addFx(g, 'word', p.x, p.y, 70, 0.9, 'PIZZA!', G.hex(0xFFD34D), 26)
+                    remark(g,f,'heal')
+                end
             end
         end
     end
@@ -2176,6 +2280,11 @@ local function drawFighter(g: Game, f: Fighter)
         A.beam(sx + f.facing * ox * f.scale, sy + oy * f.scale, 1150 * p, g.t, f.facing, 1 - math.max(0, f.st - 0.7) * 6)
     end
 
+    if f.team==1 and f.boostT>0 then
+        if f.boost=='shield' then G.ring(sx,sy-90,58,105,3,G.hex(0xDB9BFF))
+        elseif f.boost=='ward' then G.ring(sx,f.y,180,90,2,G.fade(G.WHITE,.6)) end
+        Features.icon(f.boost,sx+48,sy-135,g.t)
+    end
     local top = fighterHeight(f)
     if f.slot > 0 and g.slots[f.slot].dev ~= 'demo' then
         local s = g.slots[f.slot]
@@ -2207,8 +2316,9 @@ type DrawItem = { y: number, kind: number, idx: number }
 local function drawWorld(g: Game)
     A.stage(g.camX, g.t, Campaign.stages[g.stage].theme, g.locale)
 
-    local hazard=if g.lockX>=0 and CHECKPOINTS[g.cp] then Hazards.zone(g.stage,CHECKPOINTS[g.cp].wave,g.waveT) else nil
+    local hazard=if g.lockX>=0 and g.hazardMuted<=0 and CHECKPOINTS[g.cp] then Hazards.zone(g.stage,CHECKPOINTS[g.cp].wave,g.waveT) else nil
     if hazard then Hazards.draw(hazard,g.locale,g.waveT,false) end
+    if g.boss and g.boss.pattern then BossPatterns.draw(g.boss.pattern,g.camX,g.locale) end
     if g.boss and g.boss.kind=='trigon' and g.boss.hp>0 then
         local b=g.boss
         if b.state=='titanSlam' and b.st<1.25 then
@@ -2255,11 +2365,13 @@ local function drawWorld(g: Game)
             drawShot(g, g.shots[it.idx])
         else
             local p = g.pickups[it.idx]
-            A.pizza(p.x - g.camX, p.y - 26 - math.sin(p.t * 4) * 5, p.t)
+            if p.kind then Features.draw(p.kind,p.x-g.camX,p.y,p.t,g.locale)
+            else A.pizza(p.x - g.camX, p.y - 26 - math.sin(p.t * 4) * 5, p.t) end
         end
     end
 
-    if hazard then Hazards.draw(hazard,g.locale,g.waveT,true) end
+    if hazard then Hazards.draw(hazard,g.locale,g.waveT,true);Hazards.drawLabel(hazard,g.locale) end
+    if g.boss and g.boss.pattern then BossPatterns.drawLabel(g.boss.pattern,g.locale) end
 
     if g.boss and g.boss.kind=='trigon' and g.boss.st<1.25 then
         local b=g.boss
@@ -2402,6 +2514,18 @@ local function drawHud(g: Game)
     uiText(g, L.format(g.locale, '{stage}/8  {name}  -  WAVE {wave}/4', { stage = g.stage, name = tr(g, Campaign.stages[g.stage].name), wave = cp.wave }), 30, 124, 13, G.hex(0xFFE14D))
     if g.lockX >= 0 then
         uiText(g, L.format(g.locale, '{players}P  ENEMIES {count}', { players = math.max(1, activeSlots(g)), count = enemiesLeft(g) + #g.pending }), W - 26, 124, 14, G.WHITE, 1)
+    end
+    for _,s in g.slots do
+        local f=s.fighter
+        if f and f.boostT>0 then
+            local d=Features.get(f.boost)
+            if d then
+                local x=18+(s.idx-1)*318
+                local text=L.text(g.locale,d.name)..' '..tostring(math.ceil(f.boostT))
+                if f.boost=='shield' then text..=' / '..tostring(f.boostCharges) end
+                G.text(text,x,111,10,G.hex(d.color))
+            end
+        end
     end
     local b = g.boss
     if b and not b.removed then
@@ -2621,14 +2745,14 @@ local function drawSpeech(g: Game)
     local occupied: {Speech.Box} = {}
     for _,f in g.fighters do
         local v=f.voice
-        if f.team==1 and not f.removed and v.time>0 then
+        if not f.removed and v.time>0 then
             local x=f.x-g.camX
             if x>=-30 and x<=W+30 then
                 local height=if f.pose.down>.5 then 30*f.scale else fighterHeight(f)
-                local y=math.clamp(f.y-f.z-height-40,166,H-30)
+                local y=math.clamp(f.y-f.z-height-40,if f.team==2 then 340 else 166,H-30)
                 local box=Speech.place(tr(g,v.text),x,y,occupied)
                 table.insert(occupied,box)
-                Speech.draw(box,x,y,HEROES[f.hero].color,math.min(1,v.age/.10,v.time/.25))
+                Speech.draw(box,x,y,if f.team==1 then HEROES[f.hero].color else G.hex(BossPatterns.colors[f.kind] or 0xFF655B),math.min(1,v.age/.10,v.time/.25))
             end
         end
     end

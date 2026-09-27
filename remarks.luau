@@ -2,6 +2,7 @@
 -- enemy decisions or loot, and selection never repeats the previous variant.
 local R = {}
 R.lines = require('remarks_catalog')
+R.bossLines = require('boss_remarks')
 R.priority = { encounter=1, victory=1, heal=2, hurt=2, special=3, secondary=3, ultimate=4, low_health=5, down=6 } :: { [string]: number }
 
 export type Voice = {
@@ -27,7 +28,7 @@ function R.update(v: Voice, dt: number)
 end
 
 function R.offer(v: Voice, kind: string, event: string): boolean
-    local bank = R.lines[kind]
+    local bank = R.lines[kind] or R.bossLines[kind]
     local lines = if bank then bank[event] else nil
     local priority = R.priority[event] or 0
     if not lines or #lines==0 then return false end

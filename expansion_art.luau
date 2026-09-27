@@ -1,6 +1,7 @@
 -- Cartoon-inspired silhouettes and locations for the second campaign arc.
 local G=require('gfx')
 local P=require('pose')
+local L=require('localization')
 local E={}
 local H=G.hex
 local K=G.INK
@@ -93,11 +94,11 @@ function E.fighter(kind:string,p:P.Pose)
         if kind=='modbot' then
             G.rrect(-24,-160,48,19,3,K,2);G.rect(-29,-143,59,5,K)
             G.line(-17,-93,17,-93,5,G.WHITE);G.line(0,-105,0,-67,5,H(0xDF3348))
-        else G.poly({0,-102,16,-86,0,-69,-16,-86},H(0xF1D649),2);G.text('H',0,-94,16,K,.5) end
+        else G.poly({0,-102,16,-86,0,-69,-16,-86},H(0xF1D649),2);G.line(-5,-88,5,-88,3,K);G.line(0,-94,0,-82,3,K) end
     end
     G.restore()
 end
-function E.stage(cam:number,t:number,theme:string):boolean
+function E.stage(cam:number,t:number,theme:string,locale:L.Locale):boolean
     if theme~='school' and theme~='academy' and theme~='tamaran' and theme~='inferno' then return false end
     local accent=H(if theme=='school' then 0xFF6FA0 elseif theme=='academy' then 0x54DFEC elseif theme=='tamaran' then 0xD6A0FF else 0xFF854C)
     G.vgrad(0,0,1280,470,H(if theme=='inferno' then 0x591E2A else 0x171E45),H(if theme=='tamaran' then 0xAA527F else 0x47314C))
@@ -120,7 +121,7 @@ function E.stage(cam:number,t:number,theme:string):boolean
             G.line(x,203,x,326,7,accent);G.line(x-38,265,x+38,265,7,accent)
             G.glow(x,267,80,accent,.15)
         end
-        G.rrect(490,190,300,60,9,H(0xB83453),4);G.text('H.I.V.E. ACADEMY',640,211,22,G.WHITE,.5)
+        G.rrect(490,190,300,60,9,H(0xB83453),4);G.text(L.text(locale,'H.I.V.E. ACADEMY'),640,211,22,G.WHITE,.5)
     elseif theme=='tamaran' then
         G.circle(1040,183,86,H(0xF1CFAB));G.circle(226,155,42,H(0xBDAAF3))
         for i=0,7 do

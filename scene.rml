@@ -54,6 +54,7 @@
     <ScriptAsset file="tc_glyphs.luau" name="tc_glyphs" isModule="true" id="0:102"/>
     <ScriptAsset file="gfx.luau" name="gfx" isModule="true" id="0:103"/>
     <ScriptAsset file="remarks_catalog.luau" name="remarks_catalog" isModule="true" id="0:104"/>
+    <ScriptAsset file="boss_remarks.luau" name="boss_remarks" isModule="true" id="0:125"/>
     <ScriptAsset file="localization.luau" name="localization" isModule="true" id="0:105"/>
     <ScriptAsset file="armature.luau" name="armature" isModule="true" id="0:106"/>
     <ScriptAsset file="motion.luau" name="motion" isModule="true" id="0:107"/>
@@ -73,6 +74,8 @@
     <ScriptAsset file="level_map.luau" name="level_map" isModule="true" id="0:121"/>
     <ScriptAsset file="browser_input.luau" name="browser_input" isModule="true" id="0:122"/>
     <ScriptAsset file="hazards.luau" name="hazards" isModule="true" id="0:123"/>
+    <ScriptAsset file="boss_patterns.luau" name="boss_patterns" isModule="true" id="0:126"/>
+    <ScriptAsset file="level_features.luau" name="level_features" isModule="true" id="0:127"/>
     <ScriptAsset file="game.luau" name="game" isModule="true" id="0:119"/>
     <ScriptAsset file="main.luau" name="main" id="0:80"/>
     <ScriptAsset file="movement_test.luau" name="movement_test" id="0:150"/>
@@ -83,4 +86,5 @@
     <ScriptAsset file="render_test.luau" name="render_test" id="0:155"/>
     <ScriptAsset file="tutorial_test.luau" name="tutorial_test" id="0:156"/>
     <ScriptAsset file="progress_test.luau" name="progress_test" id="0:157"/>
+    <ScriptAsset file="level_features_test.luau" name="level_features_test" id="0:158"/>
 </Rive>

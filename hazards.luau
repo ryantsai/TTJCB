@@ -21,22 +21,37 @@ function H.zone(stage:number,wave:number,t:number):Zone?
     return z
 end
 function H.hits(z:Zone,x:number,y:number,height:number):boolean
-    return z.active and height<z.height and math.abs(x-z.x)<z.rx and math.abs(y-z.y)<z.ry
+    if not z.active or height>=z.height or math.abs(x-z.x)>=z.rx or math.abs(y-z.y)>=z.ry then return false end
+    if z.kind=='tiles' then return math.floor((x-z.x+z.rx)/62)%2==z.cycle%2 end
+    if z.kind=='pulse' then
+        local r=((x-z.x)/z.rx)^2+((y-z.y)/z.ry)^2
+        return r>.16 and r<1
+    end
+    return true
 end
 function H.draw(z:Zone,locale:L.Locale,t:number,body:boolean)
     if not z.active and not z.warning then return end
-    local color=G.hex(if z.warning then 0xFFE14D elseif z.kind=='pulse' then 0x6DE8FF else 0xFF654E)
+    local color=G.hex(if z.warning then 0xFFE14D elseif z.kind=='pulse' then 0x6DE8FF elseif z.kind=='reactor' then 0xEE7FDB elseif z.kind=='orbital' then 0xC69BFF elseif z.kind=='tiles' then 0xB78EFF else 0xFF654E)
     if not body then
         local x,rx=z.x,z.rx
         if z.kind=='truck' then x=640;rx=640 end
-        G.rrect(x-rx,z.y-z.ry,rx*2,z.ry*2,8,G.fade(color,if z.warning then .13 else .28))
+        if z.kind=='tiles' then
+            for i=0,4 do
+                if i%2==z.cycle%2 then
+                    G.rrect(x-rx+i*62,z.y-z.ry,62,z.ry*2,3,G.fade(color,if z.warning then .3 else .7),3)
+                end
+            end
+        elseif z.kind=='pulse' then
+            G.oellipse(x,z.y,rx,z.ry,G.fade(color,.2),2)
+            G.ellipse(x,z.y,rx*.4,z.ry*.4,G.hex(0x39354A))
+            G.ring(x,z.y,rx*.4,z.ry*.4,3,G.hex(0x8AFFC9))
+        else G.rrect(x-rx,z.y-z.ry,rx*2,z.ry*2,8,G.fade(color,if z.warning then .13 else .28)) end
         G.line(x-rx,z.y-z.ry,x+rx,z.y-z.ry,3,color)
         G.line(x-rx,z.y+z.ry,x+rx,z.y+z.ry,3,color)
         for k=0,math.floor(rx/35) do
             local px=x-rx+k*70
             G.polyline({px,z.y-8,px+14,z.y,px,z.y+8},3,color)
         end
-        G.text(L.text(locale,z.label),640,160,16,color,.5)
     elseif z.active then
         if z.kind=='truck' then
             local x,y=z.x,z.y
@@ -45,12 +60,30 @@ function H.draw(z:Zone,locale:L.Locale,t:number,body:boolean)
             G.rrect(x+73,y-62,50,30,4,G.hex(0xA5EFF5),3)
             for k=0,5 do G.line(x-122+k*29,y-77,x-122+k*29,y-21,3,G.hex(0x185663)) end
             for _,dx in {-90,92} do G.oellipse(x+dx,y-4,23,23,G.INK,3);G.circle(x+dx,y-4,10,G.hex(0x9AABC5)) end
-            G.text('H.I.V.E.',x-40,y-59,18,G.WHITE,.5)
+            G.text(L.text(locale,'H.I.V.E.'),x-40,y-59,18,G.WHITE,.5)
             G.circle(x+139,y-28,7,G.hex(0xFFF9B0))
         elseif z.kind=='laser' then
             G.line(0,z.y-26,1280,z.y-26,12,G.fade(color,.4));G.line(0,z.y-26,1280,z.y-26,4,G.WHITE)
-        elseif z.kind=='pulse' or z.kind=='tiles' then
-            for i=1,3 do G.ring(z.x,z.y,z.rx*i/3,z.ry*i/3,4,G.fade(color,.8)) end
+        elseif z.kind=='tiles' then
+            for i=0,4 do if i%2==z.cycle%2 then
+                local x=z.x-z.rx+i*62
+                G.poly({x,z.y-z.ry,x+62,z.y-z.ry,x+54,z.y+z.ry,x+8,z.y+z.ry},G.hex(0x171321),3)
+                G.line(x+5,z.y-z.ry+7,x+55,z.y-z.ry+7,3,color)
+            end end
+        elseif z.kind=='pulse' then
+            for i=2,4 do G.ring(z.x,z.y,z.rx*i/4,z.ry*i/4,4,G.fade(color,.8)) end
+            G.rrect(z.x-17,z.y-16,34,32,6,G.hex(0x25344A),3);G.circle(z.x,z.y,10,G.hex(0x6DE8FF))
+        elseif z.kind=='orbital' then
+            G.ring(z.x,z.y,z.rx,z.ry,4,color)
+            G.line(z.x,190,z.x,z.y,32,G.fade(color,.45));G.line(z.x,190,z.x,z.y,8,G.WHITE)
+            G.poly({z.x-20,215,z.x,189,z.x+20,215,z.x,242},color,3)
+        elseif z.kind=='reactor' then
+            G.rrect(z.x-z.rx,z.y-17,z.rx*2,34,6,G.hex(0x303446),4)
+            for i=-2,2 do
+                local x=z.x+i*45;local h=90+math.sin(t*6+i)*25
+                G.line(x,z.y,x,z.y-h,17,G.fade(color,.5));G.oellipse(x,z.y-h,20,30,G.fade(color,.6),2)
+                G.line(x,z.y-8,x,z.y-h+10,4,G.WHITE)
+            end
         else
             for i=-2,2 do
                 local x=z.x+i*z.rx*.32
@@ -58,8 +91,13 @@ function H.draw(z:Zone,locale:L.Locale,t:number,body:boolean)
                 G.poly({x-25,z.y+8,x-15,z.y-h*.6,x,z.y-h,x+24,z.y-33,x+27,z.y+8},color,2)
                 G.poly({x-11,z.y,x,z.y-h*.7,x+13,z.y},G.hex(0xFFE9A3))
             end
-            if z.kind=='orbital' then G.line(z.x,190,z.x,z.y,22,G.fade(G.hex(0xDDA4FF),.6)) end
         end
     end
+end
+function H.drawLabel(z:Zone,locale:L.Locale)
+    if not z.active and not z.warning then return end
+    local text=L.text(locale,z.label);local w=G.textWidth(text,16)+32
+    G.rrect(640-w/2,152,w,29,7,G.hex(0x20172F),2)
+    G.text(text,640,159,16,G.hex(0xFFCB8D),.5)
 end
 return H

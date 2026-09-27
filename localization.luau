@@ -3,8 +3,32 @@ local L = {}
 export type Locale = 'en' | 'zh-TW'
 L.languageLabel = '繁中（台灣）'
 L.catalog = {
+    ['SHIELD BLOCK'] = '護盾格擋',
+    ['10S: HEAL AND CLEAR PROJECTILES'] = '持續10秒：恢復生命並消除飛彈',
+    ['12S: BLOCK THREE HITS'] = '持續12秒：抵擋三次攻擊',
+    ['10S: CLOSE-RANGE SONIC PULSES'] = '持續10秒：近距離音波衝擊',
+    ['12S: TRAPS AND HYPNOSIS BLOCKED'] = '持續12秒：阻擋陷阱與催眠',
+    ['12S: ROBOT COVER FIRE'] = '持續12秒：機器人火力支援',
+    ['RESTORE 60 ENERGY'] = '恢復60點能量',
+    ['12S: MELEE DAMAGE +50%'] = '持續12秒：近戰傷害增加50%',
+    ['AZARATH WARD'] = '阿扎拉斯結界',
+    ['TAMARANEAN SHIELD'] = '塔瑪蘭護盾',
+    ['SONIC AMPLIFIER'] = '音波增幅器',
+    ['HYPNO JAMMER'] = '催眠干擾器',
+    ['HACKED DRONE'] = '改裝支援機',
+    ['HEX CAPACITOR'] = '咒能電容',
+    ['SALVAGE GAUNTLET'] = '回收動力拳套',
+    ['FOUR-EYE BEAMS - FIND A SAFE LANE'] = '四眼光束，找出安全路線',
+    ['CHARTA STORM - DODGE THE MARKS'] = '查塔風暴，閃開標記',
+    ['MIND DRAIN - GET INSIDE OR OUT'] = '精神吸取，靠近中心或離開外圈',
+    ['HYPNOSCREENS - FIND THE GAP'] = '催眠螢幕，移到中央空隙',
+    ['CROSS STRIKE - CHANGE LANES'] = '交錯突襲，切換路線',
+    ['BAD LUCK - LEAVE THE HEXES'] = '厄運咒術，離開咒印',
+    ['MAMMOTH RUSH - LEAVE THE LANE'] = '瑪莫猛衝，離開衝撞路線',
+    ['H.I.V.E. ACADEMY'] = '海夫學院',
+    ['H.I.V.E.'] = '海夫',
     ['MOD ROBOT'] = '魔摩機器兵',
-    ['HIVE CADET'] = '蜂巢學員',
+    ['HIVE CADET'] = '海夫學員',
     ['GORDANIAN'] = '戈爾達戰士',
     ['FIRE DEMON'] = '火焰惡魔',
     ['MAD MOD'] = '魔摩',
@@ -13,7 +37,7 @@ L.catalog = {
     ['TRIGON'] = '三宮魔',
     ['MAD MOD SCHOOL'] = '魔摩學校',
     ['ESCAPE THE ILLUSION'] = '逃離幻境',
-    ['HIVE ACADEMY'] = '蜂巢學院',
+    ['HIVE ACADEMY'] = '海夫學院',
     ['BREAK BLOODS CONTROL'] = '打破精神控制',
     ['TAMARAN'] = '塔瑪蘭星',
     ['CHALLENGE THE THRONE'] = '挑戰王座',
@@ -137,10 +161,13 @@ L.catalog = {
 } :: { [string]: string }
 
 -- Banter is authored as paired translations so variants cannot drift apart.
-for _, character in require('remarks_catalog') do
+for _, banks in {require('remarks_catalog'),require('boss_remarks')} do
+for _, character in banks do
     for _, lines in character do
         for _, line in lines do L.catalog[line[1]] = line[2] end
     end
+end
+
 end
 
 function L.text(locale: Locale, source: string): string

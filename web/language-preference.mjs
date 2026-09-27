@@ -12,9 +12,17 @@ export function browserLanguage(navigator = {}) {
   return 'en';
 }
 
+export function initialLanguage(environment = globalThis) {
+  try {
+    const saved = environment.localStorage.getItem(LANGUAGE_KEY);
+    if (saved === 'en' || saved === 'zh-TW') return saved;
+  } catch {}
+  return browserLanguage(environment.navigator);
+}
+
 // The host writes the initial value before playback. Only a Rive user-action
 // revision writes localStorage, so browser-language detection stays temporary.
-export function connectLanguage(viewModel, environment = globalThis) {
+export function connectLanguage(viewModel, environment = globalThis, onChange = () => {}) {
   const language = viewModel.string('browserLanguage');
   const revision = viewModel.number('languageRevision');
   if (!language || !revision) throw new Error('The Rive build is missing language bindings.');
@@ -28,11 +36,13 @@ export function connectLanguage(viewModel, environment = globalThis) {
     } catch { return automatic; }
   };
   language.value = read();
+  onChange(language.value);
   let lastRevision = revision.value;
   const save = () => {
     if (revision.value === lastRevision) return;
     lastRevision = revision.value;
     if (language.value !== 'en' && language.value !== 'zh-TW') return;
+    onChange(language.value);
     try {
       if (!storage) storage = environment.localStorage;
       storage.setItem(LANGUAGE_KEY, language.value);
@@ -43,6 +53,7 @@ export function connectLanguage(viewModel, environment = globalThis) {
     if (event.key !== LANGUAGE_KEY && event.key !== null) return;
     if (event.storageArea && event.storageArea !== storage) return;
     language.value = read();
+    onChange(language.value);
   };
   environment.addEventListener?.('storage', changed);
   environment.addEventListener?.('pagehide', save);

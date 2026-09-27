@@ -15,6 +15,9 @@ are authored for this game.
 | 7 — Tamaran | Orbital strikes require leaving a marked landing area | Gordanians / Blackfire |
 | 8 — Trigon’s Earth | Hellfire eruptions across the ruined city | Fire Demons / Trigon |
 
+See [level identities](level-identities.md) for the equipment, boss signatures,
+boss dialogue sources and complete localization pass.
+
 ## Cartoon references
 
 - Mad Mod's illusion school and robots draw from [Mad Mod](https://teentitans.fandom.com/wiki/Mad_Mod).
@@ -29,7 +32,8 @@ New Chinese stage and hazard descriptions are project-authored translations.
 Every encounter restarts a nine-second cycle: two seconds safe, two seconds of
 warning, two seconds active, then three seconds safe. Marked areas use the same
 geometry as hit detection. Truck warnings span the lane; the actual truck's
-moving body defines its hit area. Only players take environmental damage (18 HP).
+moving body defines its hit area. Only players take environmental damage (18 HP). School floor holes alternate
+with intact tiles; the academy sonic ring has a safe inner area.
 Each player is hit at most once per activation. Jump height matters; moving out
 of the marked area always avoids the hazard. Pausing freezes the encounter clock.
 

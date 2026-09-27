@@ -663,7 +663,7 @@ local function themedStage(camX: number, t: number, theme: string, locale: L.Loc
 end
 
 function A.stage(camX: number, t: number, theme: string?, locale: L.Locale?)
-    if theme and E.stage(camX,t,theme) then return end
+    if theme and E.stage(camX,t,theme,locale or 'en') then return end
     if theme and theme ~= 'city' then
         themedStage(camX, t, theme, locale or 'en')
         return

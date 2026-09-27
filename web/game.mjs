@@ -1,6 +1,8 @@
 import { Rive, Layout, Fit, Alignment, RuntimeLoader } from '@rive-app/webgl2';
 import { connectProgress } from './progress-storage.mjs';
-import { connectLanguage } from './language-preference.mjs';
+import { connectLanguage, initialLanguage } from './language-preference.mjs';
+
+import { hostStrings } from './host-strings.mjs';
 
 const releaseVersion = new URL(import.meta.url).searchParams.get('v');
 const assetUrl = name => new URL(`${name}${releaseVersion ? `?v=${releaseVersion}` : ''}`, location.href).href;
@@ -8,6 +10,23 @@ RuntimeLoader.setWasmUrl(assetUrl('./rive.wasm'));
 const canvas = document.querySelector('#game');
 const notice = document.querySelector('#notice');
 const fullscreen = document.querySelector('#fullscreen');
+let locale = initialLanguage();
+let noticeKey = 'loading';
+let fullscreenUnavailable = false;
+function updateHostLanguage(next = locale) {
+  locale = next;
+  const strings = hostStrings[locale];
+  document.documentElement.lang = locale;
+  document.title = strings.title;
+  canvas.setAttribute('aria-label', strings.title);
+  notice.textContent = strings[noticeKey];
+  const active = Boolean(document.fullscreenElement);
+  fullscreen.setAttribute('aria-label', active ? strings.exit : strings.enter);
+  fullscreen.setAttribute('aria-pressed', String(active));
+  fullscreen.title = fullscreenUnavailable ? strings.unavailable : active ? strings.exit : strings.fullscreen;
+}
+function showNotice(key) { noticeKey = key; notice.hidden = false; updateHostLanguage(); }
+updateHostLanguage();
 let releaseProgress;
 let releaseLanguage;
 let gamepadProperty;
@@ -43,7 +62,7 @@ const game = new Rive({
   onLoad() {
     try {
       releaseProgress = connectProgress(game.viewModelInstance);
-      releaseLanguage = connectLanguage(game.viewModelInstance);
+      releaseLanguage = connectLanguage(game.viewModelInstance, globalThis, updateHostLanguage);
       gamepadProperty = game.viewModelInstance.string('browserGamepads');
       keyboardProperty = game.viewModelInstance.string('browserKeyboard');
       game.resizeDrawingSurfaceToCanvas();
@@ -51,9 +70,9 @@ const game = new Rive({
       notice.hidden = true;
       fullscreen.hidden = !document.fullscreenEnabled;
       canvas.focus();
-    } catch (error) { notice.textContent = `Unable to load game progress: ${error.message}`; }
+    } catch (error) { console.error(error); showNotice('progressError'); }
   },
-  onLoadError() { notice.textContent = 'The game could not load. Please try again.'; },
+  onLoadError() { showNotice('loadError'); },
 });
 const observer = new ResizeObserver(() => game.resizeDrawingSurfaceToCanvas());
 observer.observe(canvas);
@@ -62,13 +81,11 @@ fullscreen.addEventListener('click', async () => {
     if (document.fullscreenElement) await document.exitFullscreen();
     else await document.documentElement.requestFullscreen();
     canvas.focus();
-  } catch { fullscreen.title = 'Fullscreen is unavailable in this browser.'; }
+  } catch { fullscreenUnavailable = true; updateHostLanguage(); }
 });
 document.addEventListener('fullscreenchange', () => {
-  const active = Boolean(document.fullscreenElement);
-  fullscreen.setAttribute('aria-label', active ? 'Exit fullscreen' : 'Enter fullscreen');
-  fullscreen.setAttribute('aria-pressed', String(active));
-  fullscreen.title = active ? 'Exit fullscreen' : 'Fullscreen';
+  fullscreenUnavailable = false;
+  updateHostLanguage();
   game.resizeDrawingSurfaceToCanvas();
 });
 function pollGamepads() {

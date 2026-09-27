@@ -64,7 +64,7 @@ def main():
     parser.add_argument('--download', action='store_true')
     args = parser.parse_args()
     source = '\n'.join((ROOT / name).read_text() for name in
-                       ['localization.luau', 'remarks_catalog.luau'])
+                       ['localization.luau', 'remarks_catalog.luau', 'boss_remarks.luau'])
     chars = ''.join(sorted({c for c in source if ord(c) > 127}))
     if args.download:
         ASSETS.mkdir(parents=True, exist_ok=True)

@@ -117,7 +117,8 @@ return function(): Tests
                 expect(Hazards.hits(warn,warn.x,warn.y,0)).is(false)
                 local z=Hazards.zone(stage,1,5) :: Hazards.Zone
                 expect(z.active).is(true);expect(kinds[z.kind]).is(nil);kinds[z.kind]=true
-                expect(Hazards.hits(z,z.x,z.y,0)).is(true)
+                expect(Hazards.hits(z,z.x,z.y,0)).is(stage~=6)
+                if stage==6 then expect(Hazards.hits(z,z.x+z.rx*.7,z.y,0)).is(true) end
                 expect(Hazards.hits(z,z.x,z.y+z.ry+1,0)).is(false)
                 expect(Hazards.hits(z,z.x,z.y,z.height+1)).is(false)
                 expect((Hazards.zone(stage,1,7) :: Hazards.Zone).active).is(false)

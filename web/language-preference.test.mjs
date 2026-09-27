@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { browserLanguage, connectLanguage, LANGUAGE_KEY } from './language-preference.mjs';
+import { browserLanguage, connectLanguage, initialLanguage, LANGUAGE_KEY } from './language-preference.mjs';
 
 function property(value) {
   const listeners = new Set();
@@ -90,4 +90,18 @@ test('blocked storage keeps the current language and pending choices flush on pa
   assert.equal(h.data.get(LANGUAGE_KEY), 'zh-TW');
   stop(); choose(pending, 'en');
   assert.equal(h.data.get(LANGUAGE_KEY), 'zh-TW');
+});
+
+
+test('host text follows initial preference, game selection and other tabs', () => {
+  const h = host(['en-US'], { [LANGUAGE_KEY]: 'zh-TW' });
+  assert.equal(initialLanguage(h), 'zh-TW');
+  const v = vm(); const seen = [];
+  connectLanguage(v, h, value => seen.push(value));
+  choose(v, 'en');
+  h.localStorage.setItem(LANGUAGE_KEY, 'zh-TW');
+  h.dispatch('storage', { key: LANGUAGE_KEY, storageArea: h.localStorage });
+  assert.deepEqual(seen, ['zh-TW', 'en', 'zh-TW']);
+  assert.equal(initialLanguage({ navigator: { language: 'zh-TW' },
+    get localStorage() { throw new Error('blocked'); } }), 'zh-TW');
 });

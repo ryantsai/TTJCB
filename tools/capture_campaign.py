@@ -10,6 +10,9 @@ import subprocess
 SCENE = r'''
 local Game=require('game')
 local C=require('campaign')
+local B=require('boss_patterns')
+local R=require('remarks')
+local F=require('level_features')
 local function step(a:any,n:number) for _=1,n do a.advance(a,1/60) end end
 local function press(a:any,k:number)
     a.keyboardEvent(a,{key=k,phase='down'});step(a,1)
@@ -29,6 +32,14 @@ return function(context:Context):Layout<Game.Main>
         if f.team==2 and f.kind~='trigon' then f.x=g.camX+650+(i%3)*160;f.y=500+(i%3)*65 end
     end
     if MAP then g.mode='map';g.selectedLevel=STAGE end
+    g.locale='LOCALE'
+    if EQUIPMENT and F.defs[STAGE] then g.pickups={{x=g.camX+540,y=610,t=0,dead=false,kind=F.defs[STAGE].kind}} end
+    if SIGNATURE and g.boss then
+        local b=g.boss;b.x=g.camX+950;b.y=590;b.state='signature';b.st=PATTERN_TIME
+        b.pattern=B.new(b.kind,b.x,b.y,g.camX+520,575,g.camX);b.pattern.t=PATTERN_TIME
+        b.voice=R.new(10);R.offer(b.voice,b.kind,'special');b.voice.age=1
+        h.x=g.camX+160
+    end
     a.advance=function(self:any,dt:number):boolean return true end
     return a
 end
@@ -41,16 +52,21 @@ def main():
     parser.add_argument('--hazard',type=float,default=5)
     parser.add_argument('--locale',choices=['en','zh-TW'],default='en')
     parser.add_argument('--map',action='store_true')
+    parser.add_argument('--signature',action='store_true')
+    parser.add_argument('--equipment',action='store_true')
+    parser.add_argument('--pattern-time',type=float,default=.6)
     args=parser.parse_args()
     root=Path(__file__).resolve().parents[1]
     name=f'campaign-{args.stage}-'+('map' if args.map else 'play')+'-'+args.locale
+    if args.signature:name+='-signature'
+    if args.equipment:name+='-equipment'
     target=root/'build'/name;target.mkdir(parents=True,exist_ok=True)
     for source in root.glob('*.luau'):
         if source.name!='main.luau' and not source.name.endswith('_test.luau'):
             shutil.copy2(source,target/source.name)
     markup='\n'.join(line for line in (root/'scene.rml').read_text().splitlines() if '_test.luau' not in line)
     (target/'scene.rml').write_text(markup)
-    scene=SCENE.replace('LOCALE',args.locale).replace('STAGE',str(args.stage)).replace('WAVE',str(args.wave)).replace('HAZARD',str(args.hazard)).replace('MAP',str(args.map).lower())
+    scene=SCENE.replace('LOCALE',args.locale).replace('STAGE',str(args.stage)).replace('WAVE',str(args.wave)).replace('HAZARD',str(args.hazard)).replace('MAP',str(args.map).lower()).replace('SIGNATURE',str(args.signature).lower()).replace('EQUIPMENT',str(args.equipment).lower()).replace('PATTERN_TIME',str(args.pattern_time))
     (target/'main.luau').write_text(scene)
     (target/'rive.yaml').write_text(f'name: {name}\nmain: main\nartboard:\n  width: 1280\n  height: 720\n')
     for command in [['rive','.', '--verify'],['rive','inspect','.', '--summary'],['rive','.', '--screenshot','--advance=1']]:

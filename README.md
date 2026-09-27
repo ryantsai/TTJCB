@@ -132,14 +132,24 @@ full health, three lives and 60 energy. Joined players stay together between lev
 | Iron Docks | Moonlit harbor, cranes and moving cargo trucks | Mammoth — aggressive charges and heavy slams |
 | Hex Foundry | H.I.V.E. reactors with erupting floor vents | Jinx — three-lane hex volleys |
 | Slade HQ | Rooftops above the city; low security lasers | Slade — blade volleys, rushes and close combat |
-| Mad Mod School | Warped checkerboard halls and false-floor traps | Mad Mod — volleys, with rushing Mod Robots |
-| H.I.V.E. Academy | Training chambers and sonic fields | Brother Blood — close-range pulses, blades and charges |
-| Tamaran | Palace terraces and orbital strikes | Blackfire — energy volleys, with armored Gordanians |
-| Trigon’s Earth | Ruined Jump City and erupting hellfire | Trigon — giant ground slams and three-lane fire volleys |
+| Mad Mod School | Warped checkerboard halls and false-floor traps | Mad Mod — hypnoscreens and slowing zones, with Mod Robots |
+| H.I.V.E. Academy | Training chambers and sonic fields | Brother Blood — mind-drain rings and sonic attacks |
+| Tamaran | Palace terraces and orbital strikes | Blackfire — jewel-enhanced strike sequences, with Gordanians |
+| Trigon’s Earth | Ruined Jump City and erupting hellfire | Trigon — giant slams, fire volleys and four-eye beams |
 
 Maps 2–8 have encounter hazards with a two-second warning before they activate.
 Move out of the marked lane for cargo trucks, reactor vents, orbital strikes and
 hellfire. Jump over low rooftop lasers, false-floor traps and academy sonic fields.
+School floor traps alternate between open and intact tiles. Academy sonic rings
+have a safe center. Each level also drops different support equipment: a salvage
+gauntlet, energy capacitor, hacked drone, hypno jammer, sonic amplifier,
+Tamaranean shield or Azarath ward. Walk over equipment to collect it; its effect
+and duration appear below it, and active equipment appears in the player HUD.
+
+Each boss in levels 2–8 adds a distinct warned signature attack and its own
+English/Traditional Chinese dialogue. See [level mechanics and research](docs/level-identities.md)
+for all seven patterns, equipment effects and source notes.
+
 Hazards pause with the game and hit each player at most once per activation.
 
 Trigon occupies roughly one-third of the screen width (430px), stands 450px tall,

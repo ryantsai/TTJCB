@@ -72,7 +72,7 @@ local function landmark(i:number,x:number,y:number,color:Color)
             G.poly({-45,-54,-67,-103,-19,-77,20,-77,67,-103,45,-54,0,-19},color2,3)
             G.line(-28,-58,-8,-51,6,YELLOW);G.line(8,-51,28,-58,6,YELLOW)
         elseif i==7 then G.poly({-34,10,-34,-51,0,-90,34,-51,34,10},color2,3)
-        elseif i==6 then G.poly({0,-86,38,-64,38,-20,0,2,-38,-20,-38,-64},color2,3);G.text('H',0,-66,36,INK,.5)
+        elseif i==6 then G.poly({0,-86,38,-64,38,-20,0,2,-38,-20,-38,-64},color2,3);G.poly({0,-66,17,-55,17,-37,0,-26,-17,-37,-17,-55},INK,2)
         else for k=1,5 do G.ring(0,-44,k*9,k*9,4,if k%2==0 then color2 else PAPER) end end
     else
         G.poly({-48,17,-40,-61,-15,-80,-15,-111,0,-124,15,-111,15,-80,40,-61,48,17},dark,3)
