@@ -2574,12 +2574,15 @@ local function drawLanguage(g: Game)
     end
 end
 
+local function shadeBackdrop(alpha: number)
+    -- Bake transparency into the paint: the browser renderer can ignore
+    -- script opacity modulation and otherwise cover the entire city.
+    G.rect(0, 0, W, H, G.fade(G.hex(0x140C24), alpha))
+end
+
 local function drawTitle(g: Game)
     A.stage((g.t * 40) % 4000, g.t, nil, g.locale)
-    G.save()
-    G.opacity(0.45)
-    G.rect(0, 0, W, H, G.hex(0x140C24))
-    G.restore()
+    shadeBackdrop(.45)
 
     -- logo
     G.vgrad(0, 0, W, 330, G.fade(G.hex(0x140C24), 0.85), G.fade(G.hex(0x140C24), 0))
@@ -2631,10 +2634,7 @@ end
 
 local function drawSelect(g: Game)
     A.stage(1800 + math.sin(g.t * 0.2) * 200, g.t, nil, g.locale)
-    G.save()
-    G.opacity(0.6)
-    G.rect(0, 0, W, H, G.hex(0x140C24))
-    G.restore()
+    shadeBackdrop(.6)
     uiText(g, 'CHOOSE YOUR TITAN', W / 2, 26, 44, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
     uiText(g, L.format(g.locale,'LEVEL {level}',{level=g.selectedLevel}),26,28,14,G.hex(0x7FD8FF))
     uiText(g, Campaign.stages[g.selectedLevel].name,26,54,13,G.WHITE)
@@ -2726,10 +2726,7 @@ local function drawSelect(g: Game)
 end
 
 local function drawEnd(g: Game)
-    G.save()
-    G.opacity(math.min(0.75, g.modeT))
-    G.rect(0, 0, W, H, G.hex(0x140C24))
-    G.restore()
+    shadeBackdrop(math.min(.75, g.modeT))
     if g.mode == 'win' then
         uiText(g, 'JUMP CITY IS SAFE!', W / 2, 150, 64, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
         uiText(g, 'TITANS WIN!', W / 2, 240, 34, G.WHITE, 0.5)
@@ -2787,19 +2784,13 @@ local function drawPlay(g: Game)
     drawHud(g)
 
     if g.continueT > 0 then
-        G.save()
-        G.opacity(0.6)
-        G.rect(0, 0, W, H, G.hex(0x140C24))
-        G.restore()
+        shadeBackdrop(.6)
         uiText(g, 'CONTINUE?', W / 2, 250, 64, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
         uiText(g, `{math.ceil(g.continueT)}`, W / 2, 340, 90, G.WHITE, 0.5)
         uiText(g, 'PRESS START', W / 2, 470, 26, G.WHITE, 0.5)
     end
     if g.paused then
-        G.save()
-        G.opacity(0.6)
-        G.rect(0, 0, W, H, G.hex(0x140C24))
-        G.restore()
+        shadeBackdrop(.6)
         uiText(g, 'PAUSED', W / 2, 270, 72, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
         uiText(g, 'START: RESUME    BACK / ESC: QUIT TO TITLE', W / 2, 380, 18, G.WHITE, 0.5)
     end
