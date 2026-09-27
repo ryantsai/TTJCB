@@ -5,11 +5,6 @@ RuntimeLoader.setWasmUrl(new URL('./rive.wasm', location.href).href);
 const canvas = document.querySelector('#game');
 const notice = document.querySelector('#notice');
 const fullscreen = document.querySelector('#fullscreen');
-// macOS keeps its standard window controls; the custom button is Windows-only.
-const platform = navigator.userAgentData?.platform || navigator.platform || '';
-const windowsFullscreen = /^Win/i.test(platform) && document.fullscreenEnabled === true;
-fullscreen.parentElement.hidden = !windowsFullscreen;
-document.body.classList.toggle('windows-fullscreen', windowsFullscreen);
 let releaseProgress;
 let gamepadProperty;
 let keyboardProperty;
@@ -49,6 +44,7 @@ const game = new Rive({
       game.resizeDrawingSurfaceToCanvas();
       game.play('Game');
       notice.hidden = true;
+      fullscreen.hidden = !document.fullscreenEnabled;
       canvas.focus();
     } catch (error) { notice.textContent = `Unable to load game progress: ${error.message}`; }
   },
@@ -56,19 +52,20 @@ const game = new Rive({
 });
 const observer = new ResizeObserver(() => game.resizeDrawingSurfaceToCanvas());
 observer.observe(canvas);
-if (windowsFullscreen) {
-  fullscreen.addEventListener('click', async () => {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await document.documentElement.requestFullscreen();
-      canvas.focus();
-    } catch { fullscreen.title = 'Fullscreen is unavailable in this browser.'; }
-  });
-  document.addEventListener('fullscreenchange', () => {
-    fullscreen.setAttribute('aria-label', document.fullscreenElement ? 'Exit fullscreen' : 'Enter fullscreen');
-    game.resizeDrawingSurfaceToCanvas();
-  });
-}
+fullscreen.addEventListener('click', async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+    canvas.focus();
+  } catch { fullscreen.title = 'Fullscreen is unavailable in this browser.'; }
+});
+document.addEventListener('fullscreenchange', () => {
+  const active = Boolean(document.fullscreenElement);
+  fullscreen.setAttribute('aria-label', active ? 'Exit fullscreen' : 'Enter fullscreen');
+  fullscreen.setAttribute('aria-pressed', String(active));
+  fullscreen.title = active ? 'Exit fullscreen' : 'Fullscreen';
+  game.resizeDrawingSurfaceToCanvas();
+});
 function pollGamepads() {
   if (gamepadProperty) {
     const pads = document.hidden ? [] : Array.from(navigator.getGamepads?.() ?? []);

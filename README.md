@@ -15,11 +15,10 @@ rive . --once     # write build/titans_brawl.riv
 On macOS, the **green window button at the top-left** enters full screen.
 Move the pointer to the top edge to reveal it again and leave full screen.
 The native preview uses the standard OS title bar and window controls.
-The browser build shows a custom top-left fullscreen button **only on Windows**
-when the browser supports fullscreen. macOS uses its normal window controls,
-with no extra button or reserved strip inside the game.
+The browser build shows a semi-transparent fullscreen button in the bottom-right
+corner whenever the browser supports fullscreen, including on macOS.
 
-Press **Start** (or A) on the title screen. The first start in a session opens
+Press **Space** (or controller Start) on the title screen. The first start in a session opens
 a 26-second automatic tutorial: Robin performs real gameplay actions while
 an Xbox-style controller and both players' keyboard keys animate on the right.
 It covers movement, dash strikes, tap/held jumps, combos, aerial attacks,
@@ -152,8 +151,8 @@ npm run build               # signs the game and bundles web/dist for hosting
 ```
 
 Serve `web/dist/` from a stable HTTP(S) origin. The host includes the WebGL2
-runtime, WASM, bundled Noto Sans TC font, browser controller input and a Windows-only
-top-left fullscreen button. This build command creates local release files; it does not
+runtime, WASM, bundled Noto Sans TC font, browser controller input and a bottom-right
+fullscreen button. This build command creates local release files; it does not
 publish a website or push the project to the Rive editor. Rive's server compiles
 and signs the scripts, so signing requires a logged-in session and network access.
 If authentication fails, the build stops before copying a game file into the host.
