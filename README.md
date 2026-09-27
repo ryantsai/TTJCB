@@ -103,6 +103,8 @@ Each Titan has different attack timing, reach, damage, and movement; the third h
 Specials and ultimates can cancel a grounded normal attack. Tap the button once per cast;
 holding RT does not repeat the ultimate. Energy fills over time and whenever you land or
 take a hit. The HUD shows the cost and readiness of B, Y and RT; the full meter turns gold.
+Rhino Charge restores 1 energy per enemy hit, capped at 4 per cast against its
+30-energy cost. Passive energy recovery still applies during the charge.
 Pizza heals.
 Fight through **eight stages and thirty-two encounters**, with larger mixed waves and
 reinforcements that scale up for co-op:

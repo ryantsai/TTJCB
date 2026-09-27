@@ -40,6 +40,8 @@ local DASH_ATTACK_TIME = .38
 local DASH_HIT_START = .045
 local DASH_HIT_END = .20
 local SPECIAL_COST = 30
+local RHINO_HIT_ENERGY = 1
+local RHINO_ENERGY_CAP = 4
 local HERO_SCALE = 1.2
 
 -- Data -------------------------------------------------------------------------
@@ -138,6 +140,7 @@ type Fighter = {
     combo: number,
     queued: boolean,
     hit: { [number]: boolean },
+    rhinoEnergyGained: number,
     hitPause: number,
     stepDt: number,
     buffered: { [string]: boolean },
@@ -437,7 +440,7 @@ local function newFighter(g: Game, kind: string, team: number, x: number, y: num
     local f: Fighter = {
         id = g.nextId, team = team, kind = kind, hero = 0, slot = 0, x = x, y = y, z = 0,
         vx = 0, vy = 0, vz = 0, facing = 1, hp = 50, maxHp = 50, state = 'idle', st = 0,
-        combo = 0, queued = false, hit = {}, invuln = 0, flash = 0, speed = 150, power = 1,
+        combo = 0, queued = false, hit = {}, rhinoEnergyGained = 0, invuln = 0, flash = 0, speed = 150, power = 1,
         hitPause = 0, stepDt = 0, buffered = {},
         jump = 600, tapDir = '', tapTime = 0, dashX = 0, dashY = 0, jumpBuffer = 0, jumpCut = false, airTime = 0, landing = 0, float = 1, scale = 1, radius = 22, reach = 64, dmg = 8, windup = 0.35,
         pose = A.newPose(), ai = rnd(0.5, 2), cd = rnd(0.6, 1.6), armor = 0, removed = false,
@@ -523,7 +526,14 @@ local function damage(g: Game, att: Fighter, d: Fighter, dmg: number, kbx: numbe
     if att.slot > 0 and att ~= d then
         local s = g.slots[att.slot]
         s.score += dmg * 10
-        s.energy = math.min(100, s.energy + 4)
+        local energyGain = 4
+        if att.kind == 'beast' and att.state == 'special' and not projectile then
+            -- Crowd hits must not pay for another rhino charge. The budget is
+            -- per cast and per fighter; equipment projectiles earn normally.
+            energyGain = math.min(RHINO_HIT_ENERGY, math.max(0, RHINO_ENERGY_CAP - att.rhinoEnergyGained))
+            att.rhinoEnergyGained += energyGain
+        end
+        s.energy = math.min(100, s.energy + energyGain)
     end
     if d.slot > 0 then
         local s = g.slots[d.slot]
@@ -599,6 +609,7 @@ end
 local function startSpecial(g: Game, f: Fighter, s: Slot)
     s.energy -= SPECIAL_COST
     setState(f, 'special')
+    f.rhinoEnergyGained = 0
     f.vx = 0
     f.vy = 0
     f.invuln = math.max(f.invuln, 0.4)

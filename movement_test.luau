@@ -487,6 +487,51 @@ return function(): Tests
                 expect(f.pose.move).is(5)
             end
         end)
+        test.case('rhino refunds one energy per enemy up to four per cast and cannot pay for another charge', function(expect)
+            local passive = 0
+            for _, count in {0, 1, 4, 8} do
+                local app = game(5)
+                local slot = app.g.slots[1]
+                local f = slot.fighter
+                local function crowd()
+                    app.g.fighters = {f}
+                    f.x = 600;f.facing = 1
+                    target(app, -300) -- Keep a missed charge in the same encounter.
+                    local foes = {}
+                    for i = 1, count do table.insert(foes, target(app, i * 60)) end
+                    return foes
+                end
+                local foes = crowd()
+                slot.energy = 30
+                press(app, 76);step(app, 60)
+                expect(f.state).is('idle')
+                for _, foe in foes do expect(foe.hp).is(1000 - math.floor(18 * f.power + .5)) end
+                if count == 0 then passive = slot.energy end
+                expect(math.abs(slot.energy - passive - math.min(count, 4))).lessThan(.01)
+                expect(slot.energy).lessThan(30)
+                press(app, 76)
+                expect(f.state).is('idle');expect(slot.denyT).greaterThan(0)
+                if count == 8 then
+                    -- A fresh paid cast gets a fresh budget without resetting the fighter.
+                    crowd();slot.energy = 30
+                    press(app, 76);step(app, 60)
+                    expect(math.abs(slot.energy - passive - 4)).lessThan(.01)
+                end
+            end
+        end)
+        test.case('Beast Boy normal melee and gorilla hits keep their normal energy gain', function(expect)
+            for _, secondary in {false, true} do
+                local app = game(5)
+                local slot = app.g.slots[1]
+                local foe = target(app, 60)
+                slot.fighter.rhinoEnergyGained = 4
+                slot.energy = if secondary then 40 else 0
+                press(app, if secondary then 73 else 74)
+                step(app, if secondary then 65 else 20)
+                expect(foe.hp).lessThan(1000)
+                expect(slot.energy).greaterThan(if secondary then 8 else 4)
+            end
+        end)
         test.case('gamepad Y and RT trigger all ten powers, with correct cost, direction and friendly-fire filtering', function(expect)
             for hero = 1, 5 do
                 for _, dir in { -1, 1 } do
