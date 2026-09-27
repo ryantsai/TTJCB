@@ -264,6 +264,8 @@ export type Main = {
     lastBrowserGamepads: string,
     browserKeyboard: Property<string>?,
     lastBrowserKeySeq: number,
+    browserLanguage: Property<string>?,
+    languageRevision: Property<number>?,
     browserDevices: {[number]:boolean},
     size: Vector,
     languagePointer: number,
@@ -2588,6 +2590,9 @@ function init(self: Main, context: Context): boolean
     if vm then
         self.browserGamepads=vm:getString('browserGamepads')
         self.browserKeyboard=vm:getString('browserKeyboard')
+        self.browserLanguage=vm:getString('browserLanguage')
+        self.languageRevision=vm:getNumber('languageRevision')
+        if self.browserLanguage and self.browserLanguage.value=='zh-TW' then self.g.locale='zh-TW' end
     end
     return true
 end
@@ -2597,6 +2602,10 @@ function resize(self: Main, size: Vector, scale: number)
 end
 
 function advance(self: Main, seconds: number): boolean
+    if self.browserLanguage then
+        local value=self.browserLanguage.value
+        if value=='en' or value=='zh-TW' then self.g.locale=value :: L.Locale end
+    end
     local keys=self.browserKeyboard
     if keys and keys.value~='' then
         local events,newest=BrowserInput.decodeKeyboard(keys.value,self.lastBrowserKeySeq)
@@ -2660,6 +2669,12 @@ local function languageAt(self: Main, position: Vector): L.Locale?
     return nil
 end
 
+local function chooseLanguage(self: Main, locale: L.Locale)
+    self.g.locale=locale
+    if self.browserLanguage then self.browserLanguage.value=locale end
+    if self.languageRevision then self.languageRevision.value+=1 end
+end
+
 local function menuAt(self: Main, position: Vector): string?
     local p = screenPosition(self, position)
     return LevelMap.actionAt(self.g.mode,p.x,p.y,self.g.resetConfirm) or Tutorial.actionAt(self.g.mode, p.x, p.y)
@@ -2698,7 +2713,7 @@ function pointerUp(self: Main, e: PointerEvent)
     end
     if self.languagePointer ~= e.id then return end
     local target = languageAt(self, e.position)
-    if target and target == self.languageTarget then self.g.locale = target end
+    if target and target == self.languageTarget then chooseLanguage(self,target) end
     self.languagePointer = -1
     self.languageTarget = nil
     e:hit()
@@ -2729,7 +2744,7 @@ function keyboardEvent(self: Main, e: KeyboardEvent): boolean
         if e.phase == 'up' then self.languageKeyHeld = false
         elseif e.phase == 'down' and not self.languageKeyHeld then
             self.languageKeyHeld = true
-            if self.g.mode == 'title' then self.g.locale = L.toggle(self.g.locale) end
+            if self.g.mode == 'title' then chooseLanguage(self,L.toggle(self.g.locale)) end
         end
         return self.g.mode == 'title'
     end
@@ -2774,7 +2789,7 @@ function gamepadEvent(self: Main, e: GamepadEvent)
     local languageDown = if std then e.leftShoulder == true else e:buttonPressed(5)
     setButton(d, 'language', languageDown)
     if self.g.mode == 'title' and languageDown and not wasLanguageHeld then
-        self.g.locale = L.toggle(self.g.locale)
+        chooseLanguage(self,L.toggle(self.g.locale))
     end
     local stick = e.leftStick
     local sx = if math.abs(stick.x) > 0.28 then stick.x else 0
@@ -2821,6 +2836,7 @@ local function create(context: Context): Layout<Main>
         progressBridge = Progress.bridge(nil),
         browserGamepads = nil, lastBrowserGamepads = '', browserDevices = {},
         browserKeyboard = nil, lastBrowserKeySeq = 0,
+        browserLanguage = nil, languageRevision = nil,
         size = Vector.xy(0, 0),
         languagePointer = -1, languageTarget = nil, languageKeyHeld = false,
         menuPointer = -1, menuTarget = nil,

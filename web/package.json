@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test progress-storage.test.mjs",
+    "test": "node --test *.test.mjs",
     "build:host": "node build.mjs --host-only",
     "build": "node build.mjs"
   },

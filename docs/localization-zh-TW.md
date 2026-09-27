@@ -61,5 +61,11 @@ Click either choice, press Tab, or press controller LB to switch. Holding a key
 or shoulder button switches only once. Pointer input follows the same scaling
 and letterboxing as the game. Changes are allowed only on the title screen and
 remain selected through character selection, play, pause, continue, results,
-and returning to the title within the current session. New sessions start in
-English; the standalone script host has no documented persistent storage API.
+and returning to the title. In the browser, the initial choice follows
+`navigator.languages`: `zh-TW`, `zh-Hant`, `zh-HK`, and `zh-MO` use 繁中（台灣）;
+other languages fall back to English. An explicit choice is stored as `en` or
+`zh-TW` under `ttgo.language.v1` in localStorage and overrides browser language
+on later visits. Automatic detection alone does not write a preference. Other
+tabs receive preference changes through the browser storage event. The native
+preview defaults to English and can be shown in Chinese with
+`rive . --data=browserLanguage=zh-TW --advance=1`.

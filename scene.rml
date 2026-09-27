@@ -35,6 +35,8 @@
         <ViewModelPropertyString name="progressStatus" id="0:69"/>
         <ViewModelPropertyString name="browserGamepads" id="0:74"/>
         <ViewModelPropertyString name="browserKeyboard" id="0:76"/>
+        <ViewModelPropertyString name="browserLanguage" id="0:78"/>
+        <ViewModelPropertyNumber name="languageRevision" id="0:82"/>
         <ViewModelInstance name="Default" id="0:63" exports="true">
             <ViewModelInstanceNumber viewModelPropertyId="0:66" propertyValue="0" id="0:70"/>
             <ViewModelInstanceBoolean viewModelPropertyId="0:67" propertyValue="false" id="0:71"/>
@@ -42,6 +44,8 @@
             <ViewModelInstanceString viewModelPropertyId="0:69" propertyValue="session" id="0:73"/>
             <ViewModelInstanceString viewModelPropertyId="0:74" propertyValue="" id="0:75"/>
             <ViewModelInstanceString viewModelPropertyId="0:76" propertyValue="" id="0:77"/>
+            <ViewModelInstanceString viewModelPropertyId="0:78" propertyValue="en" id="0:79"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:82" propertyValue="0" id="0:83"/>
         </ViewModelInstance>
     </ViewModel>
 

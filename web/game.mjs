@@ -1,5 +1,6 @@
 import { Rive, Layout, Fit, Alignment, RuntimeLoader } from '@rive-app/webgl2';
 import { connectProgress } from './progress-storage.mjs';
+import { connectLanguage } from './language-preference.mjs';
 
 const releaseVersion = new URL(import.meta.url).searchParams.get('v');
 const assetUrl = name => new URL(`${name}${releaseVersion ? `?v=${releaseVersion}` : ''}`, location.href).href;
@@ -8,6 +9,7 @@ const canvas = document.querySelector('#game');
 const notice = document.querySelector('#notice');
 const fullscreen = document.querySelector('#fullscreen');
 let releaseProgress;
+let releaseLanguage;
 let gamepadProperty;
 let keyboardProperty;
 let lastPads = '';
@@ -41,6 +43,7 @@ const game = new Rive({
   onLoad() {
     try {
       releaseProgress = connectProgress(game.viewModelInstance);
+      releaseLanguage = connectLanguage(game.viewModelInstance);
       gamepadProperty = game.viewModelInstance.string('browserGamepads');
       keyboardProperty = game.viewModelInstance.string('browserKeyboard');
       game.resizeDrawingSurfaceToCanvas();
@@ -85,4 +88,6 @@ function pollGamepads() {
 }
 requestAnimationFrame(pollGamepads);
 // Keep the save observer alive across the browser's back/forward cache.
-window.addEventListener('pagehide', event => { if (!event.persisted) releaseProgress?.(); });
+window.addEventListener('pagehide', event => {
+  if (!event.persisted) { releaseProgress?.(); releaseLanguage?.(); }
+});

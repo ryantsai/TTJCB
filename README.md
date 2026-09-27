@@ -173,7 +173,9 @@ for the save contract and validation commands.
 
 English and **繁體中文（台灣）** are available from the main menu's top-right
 selector. Click a language, press **Tab**, or press controller **LB**. The choice
-stays active throughout the current session. Chinese uses the **Noto Sans TC**
+is saved in this browser. Until someone chooses a language, the web game uses
+the browser's preferred language (Traditional Chinese for `zh-TW`, `zh-Hant`,
+`zh-HK`, or `zh-MO`; English otherwise). Chinese uses the **Noto Sans TC**
 Google Fonts web font, bundled for offline Rive rendering. Taiwan TV terminology,
 source research and font regeneration details are in
 [docs/localization-zh-TW.md](docs/localization-zh-TW.md).

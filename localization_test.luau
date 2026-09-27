@@ -33,6 +33,33 @@ end
 
 return function(): Tests
     return function(test: Tester)
+        test.case('browser language hydrates before play and explicit choices publish one revision', function(expect)
+            local app: any = (Game.create :: any)(nil)
+            local props: any = { browserLanguage = {value='zh-TW'}, languageRevision = {value=0} }
+            local vm: any = {
+                getString = function(self: any, key: string) return props[key] end,
+                getNumber = function(self: any, key: string) return props[key] end,
+                getBoolean = function(self: any, key: string) return props[key] end,
+            }
+            app.init(app, {viewModel = function(self: any) return vm end})
+            step(app, 1)
+            expect(app.g.locale).is('zh-TW')
+            expect(props.languageRevision.value).is(0)
+            -- Another tab updates the preference without claiming a local choice.
+            props.browserLanguage.value='en';step(app,1)
+            expect(app.g.locale).is('en')
+            expect(props.languageRevision.value).is(0)
+            press(app,258)
+            expect(app.g.locale).is('zh-TW')
+            expect(props.browserLanguage.value).is('zh-TW')
+            expect(props.languageRevision.value).is(1)
+            local chinese=pointer(1,1160,46)
+            app.pointerDown(app,chinese);app.pointerUp(app,chinese)
+            expect(props.languageRevision.value).is(2)
+            pad(app,true);pad(app,true)
+            expect(app.g.locale).is('en')
+            expect(props.languageRevision.value).is(3)
+        end)
         test.case('Taiwan terminology covers all heroes, enemies, stages and powers', function(expect)
             local names = { ROBIN = '羅賓', CYBORG = '鋼骨', STARFIRE = '俏嬌娃', RAVEN = '酷姬', ['BEAST BOY'] = '人皮獸' } :: { [string]: string }
             for english, chinese in names do
