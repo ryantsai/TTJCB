@@ -262,6 +262,8 @@ export type Main = {
     progressBridge: Progress.Bridge,
     browserGamepads: Property<string>?,
     lastBrowserGamepads: string,
+    browserKeyboard: Property<string>?,
+    lastBrowserKeySeq: number,
     browserDevices: {[number]:boolean},
     size: Vector,
     languagePointer: number,
@@ -2378,7 +2380,7 @@ local function drawTitle(g: Game)
     end
 
     if math.floor(g.t * 2.5) % 2 == 0 then
-        uiText(g, 'PRESS START', W / 2, 628, 36, G.WHITE, 0.5)
+        uiText(g, 'PRESS SPACE / START', W / 2, 628, 36, G.WHITE, 0.5)
     end
     local pads = 0
     for id, _ in g.devs do
@@ -2606,7 +2608,10 @@ end
 function init(self: Main, context: Context): boolean
     self.progressBridge=Progress.bridge(context)
     local vm=context:viewModel()
-    if vm then self.browserGamepads=vm:getString('browserGamepads') end
+    if vm then
+        self.browserGamepads=vm:getString('browserGamepads')
+        self.browserKeyboard=vm:getString('browserKeyboard')
+    end
     return true
 end
 
@@ -2615,6 +2620,12 @@ function resize(self: Main, size: Vector, scale: number)
 end
 
 function advance(self: Main, seconds: number): boolean
+    local keys=self.browserKeyboard
+    if keys and keys.value~='' then
+        local events,newest=BrowserInput.decodeKeyboard(keys.value,self.lastBrowserKeySeq)
+        self.lastBrowserKeySeq=newest
+        for _,event in events do keyboardEvent(self,event :: any) end
+    end
     local pads=self.browserGamepads
     if pads and pads.value~=self.lastBrowserGamepads then
         self.lastBrowserGamepads=pads.value
@@ -2832,6 +2843,7 @@ local function create(context: Context): Layout<Main>
         g = newGame(),
         progressBridge = Progress.bridge(nil),
         browserGamepads = nil, lastBrowserGamepads = '', browserDevices = {},
+        browserKeyboard = nil, lastBrowserKeySeq = 0,
         size = Vector.xy(0, 0),
         languagePointer = -1, languageTarget = nil, languageKeyHeld = false,
         menuPointer = -1, menuTarget = nil,

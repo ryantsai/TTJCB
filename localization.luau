@@ -35,6 +35,7 @@ L.catalog = {
     ['{stage}/4  {name}  -  WAVE {wave}/4'] = '{stage}/4  {name}  第 {wave}/4 波',
     ['{players}P  ENEMIES {count}'] = '{players} 人遊玩  剩餘敵人 {count}',
     ['PRESS START'] = '按 START 開始',
+    ['PRESS SPACE / START'] = '按 SPACE／START 開始',
     ['X: ATTACK   A: JUMP   B: SPECIAL   Y: SECONDARY   RT: ULTIMATE   START: JOIN / PAUSE'] = 'X：攻擊   A：跳躍   B：特殊技   Y：第二招式   RT：必殺技   START：加入／暫停',
     ['1-4 PLAYERS   CONTROLLERS CONNECTED: {count}'] = '1–4 人遊玩　已連接控制器：{count}',
     ['UNOFFICIAL FAN GAME'] = '非官方同人遊戲',

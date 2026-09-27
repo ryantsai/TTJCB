@@ -20,7 +20,8 @@ local function app(cleared:number?,ready:boolean?):(any,any)
     local a:any=(Game.create :: any)(nil)
     a.g.tutorialSeen=true
     local props:any={completedLevels={value=cleared or 0},progressReady={value=ready~=false},
-        progressRevision={value=0},progressStatus={value='saved'},browserGamepads={value=''}}
+        progressRevision={value=0},progressStatus={value='saved'},browserGamepads={value=''},
+        browserKeyboard={value=''}}
     local vm:any={getNumber=function(self:any,key:string) return props[key] end,
         getBoolean=function(self:any,key:string) return props[key] end,
         getString=function(self:any,key:string) return props[key] end}
@@ -51,6 +52,19 @@ end
 
 return function():Tests
     return function(test:Tester)
+        test.case('browser keyboard snapshot makes Space start and traverse the full menu flow once',function(expect)
+            local a,p=app()
+            p.browserKeyboard.value='1,32,down;2,32,up';step(a,1)
+            expect(a.g.mode).is('map')
+            step(a,3);expect(a.g.mode).is('map')
+            p.browserKeyboard.value='1,32,down;2,32,up;3,32,down;4,32,up';step(a,1)
+            expect(a.g.mode).is('level_select')
+            p.browserKeyboard.value='5,32,down;6,32,up';step(a,1)
+            expect(a.g.mode).is('select')
+            local events,seq=B.decodeKeyboard('6,32,up;7,257,down;8,257,up',6)
+            expect(#events).is(2);expect(seq).is(8)
+            expect(#B.decodeKeyboard(string.rep('x',2049),8)).is(0)
+        end)
         test.case('start opens map, then level select, then character selection with working back and lock states',function(expect)
             local a=app()
             press(a,257);expect(a.g.mode).is('map')

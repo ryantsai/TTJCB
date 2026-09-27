@@ -12,7 +12,31 @@ fullscreen.parentElement.hidden = !windowsFullscreen;
 document.body.classList.toggle('windows-fullscreen', windowsFullscreen);
 let releaseProgress;
 let gamepadProperty;
+let keyboardProperty;
 let lastPads = '';
+let keySequence = 0;
+const keyEvents = [];
+const keyCodes = {
+  KeyW: 87, KeyA: 65, KeyS: 83, KeyD: 68,
+  KeyJ: 74, KeyK: 75, KeyL: 76, KeyI: 73, KeyU: 85,
+  KeyM: 77, KeyR: 82, KeyH: 72,
+  Space: 32, Enter: 257, Escape: 256, Backspace: 259, Tab: 258,
+  ArrowUp: 265, ArrowLeft: 263, ArrowDown: 264, ArrowRight: 262,
+  Comma: 44, Period: 46, Slash: 47, Semicolon: 59, Quote: 39,
+  ShiftRight: 344, ControlRight: 345, Delete: 261,
+  Numpad1: 321, Numpad2: 322, Numpad3: 323, NumpadEnter: 335,
+};
+function forwardKey(event) {
+  const code = keyCodes[event.code];
+  if (!keyboardProperty || code === undefined || event.metaKey || event.ctrlKey || event.altKey) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  keyEvents.push(`${++keySequence},${code},${event.type === 'keyup' ? 'up' : event.repeat ? 'repeat' : 'down'}`);
+  if (keyEvents.length > 32) keyEvents.shift();
+  keyboardProperty.value = keyEvents.join(';');
+}
+canvas.addEventListener('keydown', forwardKey, { capture: true });
+canvas.addEventListener('keyup', forwardKey, { capture: true });
 const game = new Rive({
   src: new URL('./game.riv', location.href).href,
   canvas, artboard: 'main', stateMachines: 'Game', autoplay: false, autoBind: true,
@@ -21,6 +45,7 @@ const game = new Rive({
     try {
       releaseProgress = connectProgress(game.viewModelInstance);
       gamepadProperty = game.viewModelInstance.string('browserGamepads');
+      keyboardProperty = game.viewModelInstance.string('browserKeyboard');
       game.resizeDrawingSurfaceToCanvas();
       game.play('Game');
       notice.hidden = true;

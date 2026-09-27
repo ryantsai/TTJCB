@@ -1,6 +1,24 @@
--- The web runtime handles pointer/keyboard input; standard browser gamepads
--- travel through a VM snapshot into the same native gamepad handler.
+-- Browser keyboard and standard gamepads travel through VM snapshots into
+-- the same native input handlers. Browser keyboard events need this bridge
+-- because the web runtime does not forward them to scripted layouts.
 local B={}
+function B.decodeKeyboard(snapshot:string,lastSeq:number):({any},number)
+    local out:{any}={}
+    local newest=lastSeq
+    if #snapshot>2048 then return out,newest end
+    for _,record in string.split(snapshot,';') do
+        local parts=string.split(record,',')
+        if #parts~=3 then continue end
+        local seq,key=tonumber(parts[1]),tonumber(parts[2])
+        local phase=parts[3]
+        if seq and key and seq==math.floor(seq) and seq>newest and key==math.floor(key)
+            and key>=0 and key<=512 and (phase=='down' or phase=='up' or phase=='repeat') then
+            newest=seq
+            table.insert(out,{key=key,phase=phase})
+        end
+    end
+    return out,newest
+end
 function B.decode(snapshot:string):{any}
     local out:{any}={}
     if #snapshot>1024 then return out end
