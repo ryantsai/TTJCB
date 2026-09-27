@@ -156,6 +156,13 @@ publish a website or push the project to the Rive editor. Rive's server compiles
 and signs the scripts, so signing requires a logged-in session and network access.
 If authentication fails, the build stops before copying a game file into the host.
 
+The published site is [ryantsai.github.io/TTJCB](https://ryantsai.github.io/TTJCB/).
+To publish a new version, run `python3 tools/publish_github_pages.py` from the
+project root. It signs the current Rive sources, builds the host and pushes the
+release files to the `gh-pages` branch. The GitHub Pages source is that branch's
+root. The source checkout stays on `main`; only the compiled site is on
+`gh-pages`. This script requires the local Rive and GitHub CLI logins.
+
 Use **`rive .` for authoring previews**. Unsigned local builds cannot play in web
 runtimes. `npm run build:host` checks the host bundle without signing and omits
 the playable `.riv` file. See [the progress implementation notes](docs/level-progress.md)
