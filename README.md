@@ -128,7 +128,7 @@ full health, three lives and 60 energy. Joined players stay together between lev
 
 | Stage | Setting | Boss |
 |---|---|---|
-| Jump City | Sunset streets | Cinderblock — punches, charges, ground slams |
+| Jump City | Sunset streets | Cinderblock — travelling concrete fissures, charges and ground slams |
 | Iron Docks | Moonlit harbor, cranes and moving cargo trucks | Mammoth — aggressive charges and heavy slams |
 | Hex Foundry | H.I.V.E. reactors with erupting floor vents | Jinx — three-lane hex volleys |
 | Slade HQ | Rooftops above the city; low security lasers | Slade — blade volleys, rushes and close combat |
@@ -146,9 +146,10 @@ gauntlet, energy capacitor, hacked drone, hypno jammer, sonic amplifier,
 Tamaranean shield or Azarath ward. Walk over equipment to collect it; its effect
 and duration appear below it, and active equipment appears in the player HUD.
 
-Each boss in levels 2–8 adds a distinct warned signature attack and its own
-English/Traditional Chinese dialogue. See [level mechanics and research](docs/level-identities.md)
-for all seven patterns, equipment effects and source notes.
+All eight bosses have distinct warned signature attacks and their own
+English/Traditional Chinese remarks. Cinderblock uses roars and concrete sound
+captions. See [level mechanics and research](docs/level-identities.md)
+for all eight patterns, equipment effects and source notes.
 
 Hazards pause with the game and hit each player at most once per activation.
 

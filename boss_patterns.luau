@@ -5,14 +5,20 @@ local L=require('localization')
 local B={}
 export type Zone={x:number,y:number,rx:number,ry:number,height:number,start:number,finish:number,phase:number,shape:string,inner:number}
 export type Attack={kind:string,label:string,color:Color,x:number,y:number,tx:number,ty:number,t:number,total:number,zones:{Zone},hits:{[string]:boolean}}
-B.labels={mammoth='MAMMOTH RUSH - LEAVE THE LANE',jinx='BAD LUCK - LEAVE THE HEXES',slade='CROSS STRIKE - CHANGE LANES',madmod='HYPNOSCREENS - FIND THE GAP',blood='MIND DRAIN - GET INSIDE OR OUT',blackfire='CHARTA STORM - DODGE THE MARKS',trigon='FOUR-EYE BEAMS - FIND A SAFE LANE'} :: {[string]:string}
-B.colors={mammoth=0xF5AA49,jinx=0xF478C5,slade=0xF7B14C,madmod=0xD399FF,blood=0xFF557A,blackfire=0xB984FF,trigon=0xFF763D} :: {[string]:number}
+B.labels={boss='CONCRETE FISSURE - JUMP OR SIDESTEP',mammoth='MAMMOTH RUSH - LEAVE THE LANE',jinx='BAD LUCK - LEAVE THE HEXES',slade='CROSS STRIKE - CHANGE LANES',madmod='HYPNOSCREENS - FIND THE GAP',blood='MIND DRAIN - GET INSIDE OR OUT',blackfire='CHARTA STORM - DODGE THE MARKS',trigon='FOUR-EYE BEAMS - FIND A SAFE LANE'} :: {[string]:string}
+B.colors={boss=0xC0CBD6,mammoth=0xF5AA49,jinx=0xF478C5,slade=0xF7B14C,madmod=0xD399FF,blood=0xFF557A,blackfire=0xB984FF,trigon=0xFF763D} :: {[string]:number}
 function B.new(kind:string,x:number,y:number,tx:number,ty:number,cam:number):Attack
     local a:Attack={kind=kind,label=B.labels[kind],color=G.hex(B.colors[kind]),x=x,y=y,tx=math.clamp(tx,cam+180,cam+1100),ty=math.clamp(ty,510,640),t=0,total=3.6,zones={},hits={}}
     local function zone(px:number,py:number,rx:number,ry:number,height:number,start:number,finish:number,phase:number,shape:string,inner:number)
         table.insert(a.zones,{x=px,y=py,rx=rx,ry=ry,height=height,start=start,finish=finish,phase=phase,shape=shape,inner=inner})
     end
-    if kind=='mammoth' then
+    if kind=='boss' then
+        -- A concrete crack travels from his feet toward the locked target's side.
+        -- One shared phase prevents overlapping segments from hitting twice.
+        local edge=if a.tx<x then cam+70 else cam+1210
+        local stride=(edge-x)/4
+        for i=0,3 do zone(x+stride*(i+.5),y,math.abs(stride)/2,36,42,1.2+i*.22,1.5+i*.22,1,'fissure',0) end
+    elseif kind=='mammoth' then
         zone((x+a.tx)/2,a.ty,math.abs(x-a.tx)/2+65,38,95,1,1.9,1,'rush',0)
         zone(a.tx,a.ty,150,72,38,1.9,2.25,1,'ellipse',0)
     elseif kind=='jinx' then
@@ -36,7 +42,7 @@ end
 function B.contains(z:Zone,x:number,y:number,height:number):boolean
     if height>=z.height then return false end
     local dx,dy=(x-z.x)/z.rx,(y-z.y)/z.ry
-    if z.shape=='rect' or z.shape=='rush' or z.shape=='screen' or z.shape=='beam' then return math.abs(dx)<1 and math.abs(dy)<1 end
+    if z.shape=='rect' or z.shape=='rush' or z.shape=='screen' or z.shape=='beam' or z.shape=='fissure' then return math.abs(dx)<1 and math.abs(dy)<1 end
     local r=dx*dx+dy*dy
     return r<1 and (z.inner==0 or r>z.inner*z.inner)
 end
@@ -63,14 +69,23 @@ function B.draw(a:Attack,cam:number,locale:L.Locale)
             local active=a.t>=z.start
             local c=if active then a.color else G.hex(0xFFE14D)
             local alpha=if active then .4 else .13
-            if z.shape=='rect' or z.shape=='rush' or z.shape=='screen' or z.shape=='beam' then
+            if z.shape=='rect' or z.shape=='rush' or z.shape=='screen' or z.shape=='beam' or z.shape=='fissure' then
                 G.rrect(x-z.rx,y-z.ry,z.rx*2,z.ry*2,7,G.fade(c,alpha),2)
                 G.line(x-z.rx,y-z.ry,x+z.rx,y-z.ry,3,c);G.line(x-z.rx,y+z.ry,x+z.rx,y+z.ry,3,c)
             else
                 G.oellipse(x,y,z.rx,z.ry,G.fade(c,alpha),2)
                 G.ring(x,y,z.rx,z.ry,3,c)
             end
-            if z.shape=='ring' then
+            if z.shape=='fissure' then
+                G.polyline({x-z.rx,y,x-z.rx*.5,y-10,x,y+12,x+z.rx*.5,y-8,x+z.rx,y},if active then 9 else 3,if active then G.INK else c)
+                if active then
+                    for i=-1,1 do
+                        local px=x+i*z.rx*.6
+                        G.poly({px-16,y-3,px-11,y-25,px+7,y-31,px+18,y-14,px+11,y+2},a.color,2)
+                        G.line(px-8,y-19,px+7,y-13,2,G.hex(0x697487))
+                    end
+                end
+            elseif z.shape=='ring' then
                 G.ellipse(x,y,z.rx*z.inner,z.ry*z.inner,G.hex(0x373347))
                 G.ring(x,y,z.rx*z.inner,z.ry*z.inner,3,G.hex(0x91FFCE))
             elseif z.shape=='hex' then

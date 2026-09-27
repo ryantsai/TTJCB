@@ -1,6 +1,13 @@
 -- Brief sourced quotations are identified in docs/level-identities.md.
 -- All other lines and every Taiwan translation are original adaptations.
 return {
+    -- Cinderblock is normally nonverbal: these are original sound captions.
+    boss={
+        encounter={{'GRRR...','嗚吼……'},{'HRRRAAAH!','吼啊啊！'},{'(HEAVY STONE FOOTSTEPS)','（沉重的石頭腳步聲）'}},
+        special={{'GRAAAAH!','吼啊！'},{'(CONCRETE SPLITTING)','（水泥地面裂開）'},{'(GROUND SHAKING ROAR)','（震動地面的怒吼）'}},
+        low_health={{'GRR... RAAAH!','嗚……吼啊！'},{'(ANGRY STONE RUMBLE)','（憤怒的石塊轟鳴）'},{'(CONCRETE CREAKING)','（混凝土嘎嘎作響）'}},
+        down={{'URRRGH...','嗚呃……'},{'(FALLING RUBBLE)','（碎石崩落）'},{'(ONE LAST LOW GROWL)','（最後一聲低吼）'}},
+    },
     mammoth={
         encounter={{'YOUR WORST NIGHTMARE!','你最可怕的惡夢！'},{'THIS DOCK BELONGS TO ME!','這座碼頭歸我管！'},{'SMALL HEROES. BIG MISTAKE.','小小英雄，大大錯誤。'}},
         special={{'OUT OF MY WAY!','給我讓開！'},{'I BREAK THE WHOLE DOCK!','我把整座碼頭拆掉！'},{'TRY STOPPING THIS!','有本事就擋下來！'}},

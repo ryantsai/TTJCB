@@ -68,8 +68,9 @@ return function():Tests
             for _,z in screens.zones do expect(B.hits(screens,z,640,580,0)).is(false) end
         end)
         test.case('every boss starts a signature, pauses its clock and cancels it on defeat',function(expect)
-            for stage=2,8 do
+            for stage=1,8 do
                 local a=setup(stage);local g=a.g;local b=g.boss;local h=g.slots[1].fighter
+                expect(L.catalog[B.labels[b.kind]]~=nil).is(true)
                 b.cd=0;b.signatureCd=0
                 step(a,1);expect(b.state).is('signature');expect(b.pattern.kind).is(b.kind)
                 expect(R.bossLines[b.kind].special~=nil).is(true)
@@ -80,6 +81,31 @@ return function():Tests
                 b.hp=1;b.invuln=0;b.z=0;h.boost='';h.boostT=0
                 g.shots={{kind='bolt',x=b.x,y=b.y,z=60,vx=0,t=0,life=1,owner=h,dmg=500,knock=false,hit={},dead=false,back=false}}
                 step(a,1);expect(b.hp).is(0);expect(b.pattern).is(nil)
+            end
+        end)
+        test.case('Cinderblock fissures travel outward, allow jumping or sidestepping and hit only once',function(expect)
+            for _,targetX in {200,1100} do
+                local pattern=B.new('boss',640,580,targetX,620,0)
+                local lastX=640;local lastStart=0
+                for _,z in pattern.zones do
+                    expect(z.start).greaterThan(lastStart)
+                    expect((z.x-lastX)*(targetX-640)>0).is(true)
+                    pattern.t=z.start+.1
+                    expect(B.hits(pattern,z,z.x,z.y,0)).is(true)
+                    expect(B.hits(pattern,z,z.x,z.y,43)).is(false)
+                    expect(B.hits(pattern,z,z.x,z.y+37,0)).is(false)
+                    lastX=z.x;lastStart=z.start
+                end
+            end
+            local a=setup(1);local g=a.g;local b=g.boss;local h=g.slots[1].fighter
+            g.lockX=-1;g.cp=99;g.pickups={};g.shots={}
+            b.state='signature';b.pattern=B.new('boss',b.x,b.y,h.x,h.y,g.camX)
+            local pattern=b.pattern;local hp=h.hp
+            for i,z in pattern.zones do
+                b.st=z.start+.05;b.hitPause=0
+                h.x=z.x;h.y=z.y;h.z=0;h.vz=0;h.vx=0;h.vy=0;h.invuln=0;h.hitPause=0;h.state='idle'
+                step(a,1);expect(h.hp).is(hp-b.dmg)
+                if i==1 then expect(h.state).is('down') end
             end
         end)
         test.case('signature hits are per-phase and mind drain and hypnosis have distinct effects',function(expect)

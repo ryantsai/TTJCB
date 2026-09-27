@@ -35,10 +35,12 @@ return function(context:Context):Layout<Game.Main>
     g.locale='LOCALE'
     if EQUIPMENT and F.defs[STAGE] then g.pickups={{x=g.camX+540,y=610,t=0,dead=false,kind=F.defs[STAGE].kind}} end
     if SIGNATURE and g.boss then
-        local b=g.boss;b.x=g.camX+950;b.y=590;b.state='signature';b.st=PATTERN_TIME
+        local b=g.boss;b.x=g.camX+950;b.y=590;b.state='signature';b.st=PATTERN_TIME;b.hitPause=0
         b.pattern=B.new(b.kind,b.x,b.y,g.camX+520,575,g.camX);b.pattern.t=PATTERN_TIME
         b.voice=R.new(10);R.offer(b.voice,b.kind,'special');b.voice.age=1
         h.x=g.camX+160
+        -- Resolve the signature pose through the real game update before freezing.
+        step(a,1);g.shake=0
     end
     a.advance=function(self:any,dt:number):boolean return true end
     return a

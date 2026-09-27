@@ -1035,7 +1035,7 @@ local function updateSignature(g:Game,f:Fighter,dt:number):boolean
                     a.hits[key]=true
                     if a.kind~='madmod' or h.boost~='jammer' or h.boostT<=0 then
                         local hp=h.hp
-                        damage(g,f,h,if a.kind=='blood' or a.kind=='madmod' then 12 else f.dmg,sign(h.x-f.x)*180,a.kind=='mammoth',260,true)
+                        damage(g,f,h,if a.kind=='blood' or a.kind=='madmod' then 12 else f.dmg,sign(h.x-f.x)*180,a.kind=='mammoth' or a.kind=='boss',260,true)
                         if h.hp<hp then
                             if a.kind=='madmod' then h.slowT=2 end
                             if a.kind=='blood' then g.slots[h.slot].energy=math.max(0,g.slots[h.slot].energy-25) end
@@ -1446,8 +1446,8 @@ local function updatePose(g: Game, f: Fighter, dt: number)
             p.ext = math.max(0, 1 - (f.st - w - 0.1) / 0.35)
         end
     elseif f.state == 'signature' then
-        p.move=if f.kind=='mammoth' then 7 else 6
-        p.ext=if f.st<1 then -.8 else .9
+        p.move=if f.kind=='mammoth' or f.kind=='boss' then 7 else 6
+        p.ext=if f.st<(if f.kind=='boss' then 1.2 else 1) then -.8 else .9
     elseif f.state == 'slam' then
         p.move = 7
         p.ext = if f.st < 0.65 then -1 else 1

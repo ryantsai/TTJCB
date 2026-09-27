@@ -25,6 +25,7 @@ L.catalog = {
     ['CROSS STRIKE - CHANGE LANES'] = '交錯突襲，切換路線',
     ['BAD LUCK - LEAVE THE HEXES'] = '厄運咒術，離開咒印',
     ['MAMMOTH RUSH - LEAVE THE LANE'] = '瑪莫猛衝，離開衝撞路線',
+    ['CONCRETE FISSURE - JUMP OR SIDESTEP'] = '碎地裂波，跳起或側移',
     ['H.I.V.E. ACADEMY'] = '海夫學院',
     ['H.I.V.E.'] = '海夫',
     ['MOD ROBOT'] = '魔摩機器兵',
