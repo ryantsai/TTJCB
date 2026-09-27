@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teen Titans: Jump City Brawl</title>
+<style>
+@font-face{font-family:"Noto Sans TC";src:url("./noto-sans-tc.woff2") format("woff2");font-weight:700;font-display:swap}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#140c24;color:#f5f0df;font-family:"Noto Sans TC",system-ui,sans-serif}
+body{display:flex;flex-direction:column;--fullscreen-controls-height:0px}body.windows-fullscreen{--fullscreen-controls-height:42px}
+header{height:42px;flex-shrink:0;display:flex;align-items:center;padding:4px 12px}header[hidden]{display:none}
+button{cursor:pointer;background:#ffe14d;border:0;border-radius:6px;padding:5px 14px;color:#180e24;font:inherit}
+button:focus-visible,canvas:focus-visible{outline:2px solid #7fd8ff;outline-offset:-2px}
+canvas{display:block;width:100%;height:calc(100% - var(--fullscreen-controls-height));touch-action:none}
+#notice{position:absolute;inset:var(--fullscreen-controls-height) 0 0;display:grid;place-content:center;text-align:center;padding:32px;background:#140c24}
+#notice[hidden]{display:none}
+</style>
+<header hidden><button id="fullscreen" aria-label="Enter fullscreen">⛶</button></header>
+<canvas id="game" tabindex="0" aria-label="Teen Titans: Jump City Brawl"></canvas>
+<div id="notice" role="status">Loading…</div>
+<script type="module" src="./game.js"></script>
+</html>

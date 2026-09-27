@@ -20,6 +20,8 @@ local function pad(app:any,id:number,start:boolean,attack:boolean)
 end
 local function game():any
     local app:any=(Game.create :: any)(nil)
+    app.g.tutorialSeen=true
+    press(app,257) -- Enter the level map.
     press(app,257);press(app,257);press(app,257);step(app,90);press(app,344)
     for id=0,1 do pad(app,id,true,false);step(app,1);pad(app,id,false,false) end
     local g=app.g

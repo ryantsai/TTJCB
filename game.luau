@@ -19,6 +19,10 @@ local Campaign = require('campaign')
 local L = require('localization')
 local Remarks = require('remarks')
 local Speech = require('speech')
+local Tutorial = require('tutorial')
+local Progress = require('progress')
+local LevelMap = require('level_map')
+local BrowserInput = require('browser_input')
 
 local W = G.W
 local H = G.H
@@ -34,7 +38,6 @@ local DASH_HIT_START = .045
 local DASH_HIT_END = .20
 local SPECIAL_COST = 30
 local HERO_SCALE = 1.2
-local START_CHECKPOINT = 1 -- raise to test later waves
 
 -- Data -------------------------------------------------------------------------
 
@@ -214,7 +217,18 @@ type Pickup = { x: number, y: number, t: number, dead: boolean }
 type Game = {
     locale: L.Locale,
     languageHover: number,
-    mode: string, -- title, select, play, over, win
+    mode: string, -- title, tutorial, map, select, play, over, win
+    progress: Progress.State,
+    selectedLevel: number,
+    runLevel: number,
+    mapCleared: number,
+    resetConfirm: boolean,
+    resetYes: boolean,
+    tutorialSeen: boolean,
+    tutorialReturn: string,
+    tutorial: Tutorial.State?,
+    demo: Game?,
+    menuHover: string,
     stage: number,
     healthPlayers: number,
     wavePlayers: number,
@@ -245,10 +259,16 @@ type Game = {
 
 export type Main = {
     g: Game,
+    progressBridge: Progress.Bridge,
+    browserGamepads: Property<string>?,
+    lastBrowserGamepads: string,
+    browserDevices: {[number]:boolean},
     size: Vector,
     languagePointer: number,
     languageTarget: L.Locale?,
     languageKeyHeld: boolean,
+    menuPointer: number,
+    menuTarget: string?,
 }
 
 -- Helpers ------------------------------------------------------------------------
@@ -289,6 +309,9 @@ local function newGame(): Game
     end
     return {
         locale = 'en', languageHover = 0,
+        progress = Progress.new(), selectedLevel = 1, runLevel = 1, mapCleared = 0,
+        resetConfirm = false, resetYes = false,
+        tutorialSeen = false, tutorialReturn = 'title', tutorial = nil, demo = nil, menuHover = '',
         mode = 'title', stage = 1, healthPlayers = 1, wavePlayers = 1, modeT = 0, t = 0, devs = {}, slots = slots, fighters = {}, shots = {},
         fx = {}, pickups = {}, camX = 0, lockX = -1, cp = 1, pending = {}, waveT = 0, goT = 0,
         shake = 0, paused = false, nextId = 1, continueT = 0, banner = '',
@@ -1407,15 +1430,17 @@ local function beginCheckpoint(g: Game, cp: Checkpoint)
 end
 
 local function startGame(g: Game)
+    if not Progress.canPlay(g.progress,g.selectedLevel) then g.mode='map';return end
     g.mode = 'play'
     g.modeT = 0
     g.fighters = {}
     g.shots = {}
     g.fx = {}
     g.pickups = {}
-    g.cp = START_CHECKPOINT
+    g.runLevel = g.selectedLevel
+    g.cp = (g.runLevel-1)*4+1
     g.stage = CHECKPOINTS[g.cp].stage
-    g.camX = if START_CHECKPOINT > 1 then CHECKPOINTS[START_CHECKPOINT].x - 400 else 0
+    g.camX = if g.cp > 1 then CHECKPOINTS[g.cp].x - 260 else 0
     g.lockX = -1
     g.pending = {}
     g.goT = 0
@@ -1454,9 +1479,22 @@ local function toTitle(g: Game)
     g.paused = false
     g.boss = nil
     g.selectT = -1
+    g.tutorial = nil
+    g.demo = nil
+    g.menuHover = ''
     for i = 1, 4 do
         g.slots[i] = newSlot(i)
     end
+end
+
+local function toMap(g: Game, cleared: number?)
+    g.mode,g.modeT,g.menuHover='map',0,''
+    g.mapCleared=cleared or 0
+    g.resetConfirm,g.resetYes=false,false
+    if cleared then g.selectedLevel=math.min(Progress.unlocked(g.progress),cleared+1) end
+    g.fighters,g.shots,g.fx,g.pickups,g.pending={},{},{},{},{}
+    g.paused,g.boss,g.selectT=false,nil,-1
+    for _,s in g.slots do s.locked=false end
 end
 
 local function heroTaken(g: Game, hero: number, except: Slot): boolean
@@ -1493,13 +1531,107 @@ end
 
 -- Mode updates -----------------------------------------------------------------------------------
 
+local function tutorialDemo(g: Game): Game
+    local demo = newGame()
+    demo.mode, demo.locale, demo.tutorialSeen = 'play', g.locale, true
+    -- A separate arena uses real controls, physics, attacks and projectiles.
+    -- Past the campaign's last checkpoint, it cannot spawn or clear waves.
+    demo.cp, demo.lockX = #CHECKPOINTS + 1, -1
+    local s = demo.slots[1]
+    s.dev, s.hero, s.locked, s.energy = 'demo', 1, true, 100
+    device(demo, 'demo', 'DEMO')
+    spawnHero(demo, s, 265, 565)
+    local f = s.fighter :: Fighter
+    f.state, f.z, f.invuln, f.st = 'idle', 0, 0, 0
+    f.voice.seenWave, f.voice.cooldown = demo.cp, 1000
+    local state = g.tutorial :: Tutorial.State
+    if Tutorial.steps[state.index].target then
+        local target = newFighter(demo, 'bot', 2, f.x + 76, f.y)
+        target.state, target.hp, target.maxHp = 'target', 1000, 1000
+        target.speed, target.cd, target.facing = 0, 1000, -1
+    end
+    return demo
+end
+
+local function beginTutorial(g: Game, returnMode: string)
+    g.tutorialSeen, g.tutorialReturn = true, returnMode
+    g.mode, g.modeT, g.menuHover = 'tutorial', 0, ''
+    g.tutorial = Tutorial.new()
+    g.demo = tutorialDemo(g)
+end
+
+local function finishTutorial(g: Game)
+    g.mode, g.modeT, g.menuHover = g.tutorialReturn, 0, ''
+    g.tutorial, g.demo = nil, nil
+    for _, d in g.devs do table.clear(d.pressed) end
+end
+
+local function tutorialNext(g: Game, previous: boolean?)
+    local state = g.tutorial
+    if not state then return end
+    if previous then Tutorial.previous(state)
+    elseif not Tutorial.next(state) then finishTutorial(g); return end
+    g.demo = tutorialDemo(g)
+end
+
+local function menuAction(g: Game, action: string)
+    if action=='map' and g.mode=='title' then toMap(g)
+    elseif g.mode=='map' then
+        if g.resetConfirm then
+            if action=='keep' then g.resetConfirm=false
+            elseif action=='confirm' then
+                Progress.reset(g.progress)
+                g.selectedLevel,g.mapCleared,g.resetConfirm,g.resetYes=1,0,false,false
+            end
+        elseif action=='reset' then g.resetConfirm,g.resetYes=true,false
+        elseif action=='back' then toTitle(g)
+        elseif string.sub(action,1,5)=='level' then
+            g.selectedLevel=math.clamp(tonumber(string.sub(action,6)) or 1,1,4)
+        elseif action=='play' and Progress.canPlay(g.progress,g.selectedLevel) then
+            local joined=false
+            for _,s in g.slots do if s.dev~='' then joined=true;s.locked=false end end
+            if not joined then device(g,'kb1','KEYBOARD 1');joinSlot(g,'kb1') end
+            if not g.tutorialSeen then beginTutorial(g,'select')
+            else g.mode,g.modeT,g.selectT='select',0,-1 end
+        end
+    elseif action == 'help' and g.mode == 'title' then beginTutorial(g, 'title')
+    elseif g.mode == 'tutorial' then
+        if action == 'skip' then finishTutorial(g)
+        elseif action == 'next' then tutorialNext(g)
+        elseif action == 'previous' then tutorialNext(g, true) end
+    end
+end
+
 local function updateTitle(g: Game)
     for id, d in g.devs do
+        if pressed(d, 'y') then beginTutorial(g, 'title'); return end
         if pressed(d, 'start') or pressed(d, 'a') then
-            g.mode = 'select'
-            g.modeT = 0
             joinSlot(g, id)
+            if not g.tutorialSeen then beginTutorial(g, 'map')
+            else toMap(g) end
             return
+        end
+    end
+end
+
+local function updateMap(g: Game)
+    for id,d in g.devs do
+        if g.resetConfirm then
+            if pressed(d,'cancel') or pressed(d,'back') or pressed(d,'b') then menuAction(g,'keep');return end
+            if pressed(d,'L') or pressed(d,'R') then g.resetYes=not g.resetYes end
+            if pressed(d,'a') or pressed(d,'start') then menuAction(g,if g.resetYes then 'confirm' else 'keep');return end
+        elseif pressed(d,'y') then menuAction(g,'reset');return
+        elseif pressed(d,'cancel') or pressed(d,'back') or pressed(d,'b') then toTitle(g);return
+        else
+            if pressed(d,'L') or pressed(d,'U') then g.selectedLevel=math.max(1,g.selectedLevel-1)
+            elseif pressed(d,'R') or pressed(d,'D') then g.selectedLevel=math.min(4,g.selectedLevel+1) end
+            if pressed(d,'a') or pressed(d,'start') then
+                if Progress.canPlay(g.progress,g.selectedLevel) then
+                    if slotOf(g,id)==nil then joinSlot(g,id) end
+                    menuAction(g,'play')
+                end
+                return
+            end
         end
     end
 end
@@ -1781,48 +1913,28 @@ local function updatePlay(g: Game, dt: number)
                 k += 1
             end
         end
-        if #g.pending == 0 and enemiesLeft(g) == 0 then
+        local survived=false
+        for _,hero in g.fighters do
+            if hero.team==1 and hero.hp>0 and alive(hero) then survived=true end
+        end
+        if #g.pending == 0 and enemiesLeft(g) == 0 and survived then
             for _,hero in g.fighters do
                 if hero.team==1 and hero.hp>0 and alive(hero) then remark(g,hero,'victory') end
             end
             local cp = CHECKPOINTS[g.cp]
             g.lockX = -1
             g.cp += 1
-            if g.cp > #CHECKPOINTS then
-                g.mode = 'win'
-                g.modeT = 0
-                g.banner = ''
-                for _, s in g.slots do
-                    if s.dev ~= '' and not s.out then
-                        s.score += 10000
-                    end
+            if cp.boss then
+                -- A level is cleared only after its boss AND reinforcements,
+                -- with a surviving Titan. Replays never lower saved progress.
+                if cp.stage==g.runLevel then
+                    Progress.complete(g.progress,g.runLevel)
+                    for _,s in g.slots do if s.dev~='' and not s.out then s.score+=2500 end end
+                    if g.runLevel==4 then
+                        g.mode,g.modeT,g.banner='win',0,''
+                    else toMap(g,g.runLevel) end
+                    return
                 end
-            elseif cp.boss then
-                -- A fresh arena and a recovery reward between stages.
-                g.stage = CHECKPOINTS[g.cp].stage
-                g.camX = CHECKPOINTS[g.cp].x - 260
-                g.boss = nil
-                g.shots = {}
-                g.pickups = {}
-                for _, slot in g.slots do
-                    if slot.dev ~= '' and not slot.out then
-                        slot.score += 2500
-                        slot.lives = math.min(3, slot.lives + 1)
-                        slot.energy = 100
-                        local hero = slot.fighter
-                        if hero and alive(hero) then
-                            hero.x, hero.y = g.camX + 180 + slot.idx * 65, 530 + slot.idx * 30
-                            hero.hp = hero.maxHp
-                            hero.z, hero.vx, hero.vy, hero.vz = 0, 0, 0, 0
-                            hero.invuln = 2
-                            setState(hero, 'idle')
-                        end
-                    end
-                end
-                g.banner = Campaign.stages[g.stage].name
-                g.bannerSub = L.format(g.locale, 'STAGE {stage} / HEALTH AND ENERGY RESTORED', { stage = g.stage })
-                g.bannerT = 3
-                g.goT = 4
             else
                 g.goT = 3.5
             end
@@ -1883,12 +1995,47 @@ local function updateFx(g: Game, dt: number)
     end
 end
 
+local function updateTutorial(g: Game, dt: number)
+    for id, d in g.devs do
+        if pressed(d, 'start') or pressed(d, 'cancel') or pressed(d, 'back') then
+            if pressed(d, 'start') and g.tutorialReturn ~= 'title' and not slotOf(g, id) then joinSlot(g, id) end
+            finishTutorial(g)
+            return
+        elseif pressed(d, 'a') or pressed(d, 'R') then tutorialNext(g); return
+        elseif pressed(d, 'L') then tutorialNext(g, true); return end
+    end
+    local state = g.tutorial
+    if not state then return end
+    state.time += dt
+    if state.time >= Tutorial.steps[state.index].duration then tutorialNext(g); return end
+    state.input = Tutorial.inputs(state.index, state.time)
+    local demo = g.demo
+    if not demo or demo.mode ~= 'play' then return end
+    local dev = demo.devs['demo']
+    for _, name in {'L','R','U','D','a','x','b','y','rt','start','cancel'} do
+        setButton(dev, name, state.input.held[name] == true)
+    end
+    dev.mx, dev.my = state.input.mx, state.input.my
+    demo.t += dt
+    -- The target reacts to real hits but never initiates an attack.
+    for _, f in demo.fighters do
+        if f.team == 2 and (f.state == 'idle' or f.state == 'walk') then f.state = 'target' end
+    end
+    updatePlay(demo, dt)
+    if not demo.paused then updateFx(demo, dt) end
+    for _, d in demo.devs do table.clear(d.pressed) end
+end
+
 local function update(g: Game, dt: number)
     dt = math.min(dt, 1 / 30)
     g.t += dt
     g.modeT += dt
     if g.mode == 'title' then
         updateTitle(g)
+    elseif g.mode == 'tutorial' then
+        updateTutorial(g, dt)
+    elseif g.mode == 'map' then
+        updateMap(g)
     elseif g.mode == 'select' then
         updateSelect(g, dt)
     elseif g.mode == 'play' then
@@ -1896,7 +2043,7 @@ local function update(g: Game, dt: number)
     elseif g.mode == 'over' or g.mode == 'win' then
         for _, d in g.devs do
             if g.modeT > 1.5 and (pressed(d, 'start') or pressed(d, 'a')) then
-                toTitle(g)
+                toMap(g,if g.mode=='win' then g.runLevel else nil)
                 break
             end
         end
@@ -1970,12 +2117,12 @@ local function drawFighter(g: Game, f: Fighter)
     end
 
     local top = fighterHeight(f)
-    if f.slot > 0 then
+    if f.slot > 0 and g.slots[f.slot].dev ~= 'demo' then
         local s = g.slots[f.slot]
         local ty = sy - top - 30
         G.poly({ sx - 7, ty + 16, sx + 7, ty + 16, sx, ty + 24 }, s.color, 1.5)
         uiText(g, `P{f.slot}`, sx, ty - 2, 14, s.color, 0.5)
-    elseif not isBoss(f.kind) and f.hitT < 2 and f.state ~= 'ko' then
+    elseif f.team == 2 and not isBoss(f.kind) and f.hitT < 2 and f.state ~= 'ko' then
         local w = 60 * f.scale
         local by = sy - top - 16
         G.rect(sx - w / 2 - 2, by - 2, w + 4, 10, G.INK)
@@ -2174,7 +2321,6 @@ local function drawLanguage(g: Game)
         G.rrect(x, LANGUAGE_Y + 4, w, 50, 8, background)
         G.text(if i == 1 then 'ENGLISH' else L.languageLabel, x + w / 2, LANGUAGE_Y + 19, if i == 1 then 14 else 18, if selected then G.INK else G.WHITE, .5, background)
     end
-    uiText(g, 'TAB / LB: LANGUAGE', LANGUAGE_X + 304, LANGUAGE_Y - 23, 11, G.hex(0xCFC6D8), 1)
 end
 
 local function drawTitle(g: Game)
@@ -2219,10 +2365,11 @@ local function drawTitle(g: Game)
             pads += 1
         end
     end
-    uiText(g, 'X: ATTACK   A: JUMP   B: SPECIAL   Y: SECONDARY   RT: ULTIMATE   START: JOIN / PAUSE', W / 2, 676, 14, G.hex(0xCFC6D8), 0.5)
-    uiText(g, L.format(g.locale, '1-4 PLAYERS   CONTROLLERS CONNECTED: {count}', { count = pads }), W / 2, 698, 12, G.hex(0x8D839E), 0.5)
+    Tutorial.drawHelp(g.locale, g.menuHover)
+    uiText(g, L.format(g.locale, '1-4 PLAYERS   CONTROLLERS CONNECTED: {count}', { count = pads }), 18, 698, 10, G.hex(0x8D839E))
     uiText(g, 'UNOFFICIAL FAN GAME', W - 16, H - 22, 11, G.hex(0x8D839E), 1)
     drawLanguage(g)
+    LevelMap.title(g.locale,g.menuHover)
 end
 
 local function statBar(g: Game, x: number, y: number, label: string, v: number, c: Color)
@@ -2237,6 +2384,8 @@ local function drawSelect(g: Game)
     G.rect(0, 0, W, H, G.hex(0x140C24))
     G.restore()
     uiText(g, 'CHOOSE YOUR TITAN', W / 2, 26, 44, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+    uiText(g, L.format(g.locale,'LEVEL {level}',{level=g.selectedLevel}),26,28,14,G.hex(0x7FD8FF))
+    uiText(g, Campaign.stages[g.selectedLevel].name,26,54,13,G.WHITE)
 
     for _, s in g.slots do
         local x = 24 + (s.idx - 1) * 312
@@ -2407,6 +2556,17 @@ end
 local function drawGame(g: Game)
     if g.mode == 'title' then
         drawTitle(g)
+    elseif g.mode == 'tutorial' then
+        local state, demo = g.tutorial, g.demo
+        if state and demo then
+            Tutorial.draw(state, g.locale, g.menuHover, function()
+                G.save(); G.translate(8, -54.75); G.scale(1.15, 1.15)
+                drawWorld(demo)
+                G.restore()
+            end, demo.paused, demo.mode == 'title')
+        end
+    elseif g.mode == 'map' then
+        LevelMap.draw(g.locale,g.progress,g.selectedLevel,g.mapCleared,g.resetConfirm,g.resetYes,g.menuHover,g.t)
     elseif g.mode == 'select' then
         drawSelect(g)
     elseif g.mode == 'play' then
@@ -2421,6 +2581,9 @@ end
 -- Layout protocol ----------------------------------------------------------------------------------
 
 function init(self: Main, context: Context): boolean
+    self.progressBridge=Progress.bridge(context)
+    local vm=context:viewModel()
+    if vm then self.browserGamepads=vm:getString('browserGamepads') end
     return true
 end
 
@@ -2429,7 +2592,25 @@ function resize(self: Main, size: Vector, scale: number)
 end
 
 function advance(self: Main, seconds: number): boolean
+    local pads=self.browserGamepads
+    if pads and pads.value~=self.lastBrowserGamepads then
+        self.lastBrowserGamepads=pads.value
+        local current:{[number]:boolean}={}
+        for _,event in BrowserInput.decode(pads.value) do
+            current[event.deviceId]=true
+            gamepadEvent(self,event)
+        end
+        for id in self.browserDevices do
+            if not current[id] then gamepadDisconnected(self,({deviceId=id} :: any)) end
+        end
+        self.browserDevices=current
+    end
+    if Progress.pull(self.g.progress,self.progressBridge) and (self.g.mode=='title' or self.g.mode=='map') then
+        self.g.selectedLevel=Progress.unlocked(self.g.progress)
+        self.g.mapCleared=0
+    end
     update(self.g, seconds)
+    Progress.push(self.g.progress,self.progressBridge)
     return true
 end
 
@@ -2449,17 +2630,28 @@ function draw(self: Main, renderer: Renderer)
     G.restore()
 end
 
-local function languageAt(self: Main, position: Vector): L.Locale?
-    if self.g.mode ~= 'title' then return nil end
+local function screenPosition(self: Main, position: Vector): Vector
     local sw = if self.size.x > 0 then self.size.x else W
     local sh = if self.size.y > 0 then self.size.y else H
     local sc = math.min(sw / W, sh / H)
     local x = (position.x - (sw - W * sc) / 2) / sc
     local y = (position.y - (sh - H * sc) / 2) / sc
+    return Vector.xy(x, y)
+end
+
+local function languageAt(self: Main, position: Vector): L.Locale?
+    if self.g.mode ~= 'title' then return nil end
+    local point = screenPosition(self, position)
+    local x, y = point.x, point.y
     if y < LANGUAGE_Y + 4 or y > LANGUAGE_Y + 54 then return nil end
     if x >= LANGUAGE_X + 4 and x <= LANGUAGE_X + 120 then return 'en' end
     if x >= LANGUAGE_X + 124 and x <= LANGUAGE_X + 306 then return 'zh-TW' end
     return nil
+end
+
+local function menuAt(self: Main, position: Vector): string?
+    local p = screenPosition(self, position)
+    return LevelMap.actionAt(self.g.mode,p.x,p.y,self.g.resetConfirm) or Tutorial.actionAt(self.g.mode, p.x, p.y)
 end
 
 function pointerDown(self: Main, e: PointerEvent)
@@ -2468,6 +2660,12 @@ function pointerDown(self: Main, e: PointerEvent)
         self.languagePointer = e.id
         self.languageTarget = target
         e:hit()
+    else
+        local action = menuAt(self, e.position)
+        if action and self.menuPointer == -1 then
+            self.menuPointer, self.menuTarget = e.id, action
+            e:hit()
+        end
     end
 end
 
@@ -2475,9 +2673,18 @@ function pointerMove(self: Main, e: PointerEvent)
     local target = languageAt(self, e.position)
     self.g.languageHover = if target == 'en' then 1 elseif target == 'zh-TW' then 2 else 0
     if target or self.languagePointer == e.id then e:hit() end
+    local action = menuAt(self, e.position)
+    self.g.menuHover = action or ''
+    if action or self.menuPointer == e.id then e:hit() end
 end
 
 function pointerUp(self: Main, e: PointerEvent)
+    if self.menuPointer == e.id then
+        local action = menuAt(self, e.position)
+        if action and action == self.menuTarget then menuAction(self.g, action) end
+        self.menuPointer, self.menuTarget = -1, nil
+        e:hit()
+    end
     if self.languagePointer ~= e.id then return end
     local target = languageAt(self, e.position)
     if target and target == self.languageTarget then self.g.locale = target end
@@ -2488,6 +2695,8 @@ end
 
 function pointerExit(self: Main, e: PointerEvent)
     self.g.languageHover = 0
+    self.g.menuHover = ''
+    if self.menuPointer == e.id then self.menuPointer, self.menuTarget = -1, nil; e:hit() end
     if self.languagePointer == e.id then
         self.languagePointer = -1
         self.languageTarget = nil
@@ -2496,6 +2705,15 @@ function pointerExit(self: Main, e: PointerEvent)
 end
 
 function keyboardEvent(self: Main, e: KeyboardEvent): boolean
+    if e.key==77 and self.g.mode=='title' and e.phase=='down' then toMap(self.g);return true end
+    if e.key==82 and self.g.mode=='map' then
+        if e.phase=='down' and not self.g.resetConfirm then menuAction(self.g,'reset') end
+        return true
+    end
+    if e.key == 72 and self.g.mode == 'title' and e.phase == 'down' then
+        beginTutorial(self.g, 'title')
+        return true
+    end
     if e.key == 258 then -- Tab: language, only on the title screen.
         if e.phase == 'up' then self.languageKeyHeld = false
         elseif e.phase == 'down' and not self.languageKeyHeld then
@@ -2589,8 +2807,11 @@ end
 local function create(context: Context): Layout<Main>
     return {
         g = newGame(),
+        progressBridge = Progress.bridge(nil),
+        browserGamepads = nil, lastBrowserGamepads = '', browserDevices = {},
         size = Vector.xy(0, 0),
         languagePointer = -1, languageTarget = nil, languageKeyHeld = false,
+        menuPointer = -1, menuTarget = nil,
         init = init,
         resize = resize,
         advance = advance,

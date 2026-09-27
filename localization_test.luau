@@ -76,6 +76,7 @@ return function(): Tests
 
         test.case('Tab switches once per press without joining and locale survives returning to title', function(expect)
             local app: any = (Game.create :: any)(nil)
+            app.g.tutorialSeen = true
             app.keyboardEvent(app, { key = 258, phase = 'down' })
             app.keyboardEvent(app, { key = 258, phase = 'repeat' })
             app.keyboardEvent(app, { key = 258, phase = 'down' })
@@ -86,7 +87,7 @@ return function(): Tests
             app.keyboardEvent(app, { key = 258, phase = 'up' })
             press(app, 257)
             press(app, 258)
-            expect(app.g.mode).is('select')
+            expect(app.g.mode).is('map')
             expect(app.g.locale).is('zh-TW')
             press(app, 256)
             step(app, 1)
@@ -100,6 +101,7 @@ return function(): Tests
 
         test.case('language clicks respect letterboxing, release location and pointer identity', function(expect)
             local app: any = (Game.create :: any)(nil)
+            app.g.tutorialSeen = true
             app.resize(app, Vector.xy(1600, 1000), 1)
             -- Design point 1160,46 at scale 1.25, with a 50px top letterbox.
             local chinese = pointer(1, 1450, 107.5)
@@ -128,6 +130,7 @@ return function(): Tests
 
         test.case('LB switches on its rising edge only and cannot alter gameplay language', function(expect)
             local app: any = (Game.create :: any)(nil)
+            app.g.tutorialSeen = true
             pad(app, true)
             pad(app, true)
             expect(app.g.locale).is('zh-TW')
@@ -137,6 +140,7 @@ return function(): Tests
             pad(app, true)
             expect(app.g.locale).is('en')
             pad(app, false)
+            press(app, 257) -- Level map.
             press(app, 257)
             press(app, 257)
             press(app, 257)
@@ -148,9 +152,11 @@ return function(): Tests
             expect(app.g.slots[2].dev).is('')
         end)
 
-        test.case('Chinese boss and stage-transition banners work through all four stages', function(expect)
+        test.case('Chinese boss banners and map returns work through all four stages', function(expect)
             local app: any = (Game.create :: any)(nil)
+            app.g.tutorialSeen = true
             press(app, 258)
+            press(app, 257) -- Level map.
             press(app, 257)
             press(app, 257)
             press(app, 257)
@@ -161,6 +167,7 @@ return function(): Tests
             hero.invuln = 10000
             for _, index in { 4, 8, 12, 16 } do
                 local cp = C.checkpoints[index]
+                g.mode='play';g.runLevel=cp.stage
                 g.fighters = { hero }
                 g.shots = {}
                 g.pending = {}
@@ -176,7 +183,10 @@ return function(): Tests
                 g.fighters = { hero }
                 step(app, 1)
                 if index < 16 then
-                    expect(g.bannerSub).is(`第 {cp.stage + 1} 關／生命與能量已恢復`)
+                    expect(g.mode).is('map')
+                    expect(g.mapCleared).is(cp.stage)
+                    expect(g.selectedLevel).is(cp.stage+1)
+                    expect(g.progress.cleared).is(cp.stage)
                 else
                     expect(g.mode).is('win')
                 end

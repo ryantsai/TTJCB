@@ -1,0 +1,12 @@
+{
+  "name": "ttgo-browser-host",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test progress-storage.test.mjs",
+    "build:host": "node build.mjs --host-only",
+    "build": "node build.mjs"
+  },
+  "dependencies": { "@rive-app/webgl2": "2.43.1" },
+  "devDependencies": { "esbuild": "0.28.2" }
+}

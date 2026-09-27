@@ -11,6 +11,8 @@ local function press(app: any, code: number)
 end
 local function game(): any
     local app: any = (Game.create :: any)(nil)
+    app.g.tutorialSeen=true -- This suite exercises campaign gameplay.
+    press(app, 257) -- Enter the level map.
     press(app,257)
     press(app,257)
     press(app,257)
@@ -41,6 +43,7 @@ local function enemies(app: any): number
 end
 local function encounter(app: any, index: number)
     local g=app.g
+    g.mode='play';g.runLevel=C.checkpoints[index].stage
     g.fighters={g.slots[1].fighter}
     g.shots={}
     g.pending={}
@@ -93,12 +96,11 @@ return function(): Tests
                 app.g.fighters={app.g.slots[1].fighter}
                 step(app,1)
                 expect(app.g.cp).is(index+1)
-                expect(app.g.mode).is(if index==#C.checkpoints then 'win' else 'play')
+                expect(app.g.mode).is(if index==#C.checkpoints then 'win' elseif cp.boss then 'map' else 'play')
                 if cp.boss and index<#C.checkpoints then
-                    expect(app.g.stage).is(cp.stage+1)
+                    expect(app.g.progress.cleared).is(cp.stage)
+                    expect(app.g.selectedLevel).is(cp.stage+1)
                     expect(app.g.boss).is(nil)
-                    expect(app.g.slots[1].fighter.hp).is(app.g.slots[1].fighter.maxHp)
-                    expect(app.g.slots[1].energy).is(100)
                 end
             end
             expect(bosses).is(4)

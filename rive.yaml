@@ -1,5 +1,7 @@
 name: titans_brawl
 main: main
+exclude:
+  - web
 artboard:
   width: 1280
   height: 720
@@ -7,3 +9,6 @@ artboard:
 logs:
   file: build/rive.log
   problems: build/problems.log
+push:
+  projectId: 1726898
+  fileId: 2612784

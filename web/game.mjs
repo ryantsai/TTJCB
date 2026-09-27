@@ -1,0 +1,64 @@
+import { Rive, Layout, Fit, Alignment, RuntimeLoader } from '@rive-app/webgl2';
+import { connectProgress } from './progress-storage.mjs';
+
+RuntimeLoader.setWasmUrl(new URL('./rive.wasm', location.href).href);
+const canvas = document.querySelector('#game');
+const notice = document.querySelector('#notice');
+const fullscreen = document.querySelector('#fullscreen');
+// macOS keeps its standard window controls; the custom button is Windows-only.
+const platform = navigator.userAgentData?.platform || navigator.platform || '';
+const windowsFullscreen = /^Win/i.test(platform) && document.fullscreenEnabled === true;
+fullscreen.parentElement.hidden = !windowsFullscreen;
+document.body.classList.toggle('windows-fullscreen', windowsFullscreen);
+let releaseProgress;
+let gamepadProperty;
+let lastPads = '';
+const game = new Rive({
+  src: new URL('./game.riv', location.href).href,
+  canvas, artboard: 'main', stateMachines: 'Game', autoplay: false, autoBind: true,
+  layout: new Layout({ fit: Fit.Layout, alignment: Alignment.Center }),
+  onLoad() {
+    try {
+      releaseProgress = connectProgress(game.viewModelInstance);
+      gamepadProperty = game.viewModelInstance.string('browserGamepads');
+      game.resizeDrawingSurfaceToCanvas();
+      game.play('Game');
+      notice.hidden = true;
+      canvas.focus();
+    } catch (error) { notice.textContent = `Unable to load game progress: ${error.message}`; }
+  },
+  onLoadError() { notice.textContent = 'The game could not load. Please try again.'; },
+});
+const observer = new ResizeObserver(() => game.resizeDrawingSurfaceToCanvas());
+observer.observe(canvas);
+if (windowsFullscreen) {
+  fullscreen.addEventListener('click', async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+      canvas.focus();
+    } catch { fullscreen.title = 'Fullscreen is unavailable in this browser.'; }
+  });
+  document.addEventListener('fullscreenchange', () => {
+    fullscreen.setAttribute('aria-label', document.fullscreenElement ? 'Exit fullscreen' : 'Enter fullscreen');
+    game.resizeDrawingSurfaceToCanvas();
+  });
+}
+function pollGamepads() {
+  if (gamepadProperty) {
+    const pads = document.hidden ? [] : Array.from(navigator.getGamepads?.() ?? []);
+    const snapshot = pads.filter(pad => pad?.connected && pad.mapping === 'standard').slice(0, 4).map(pad => {
+      let mask = 0;
+      for (let i = 0; i < Math.min(16, pad.buttons.length); i++) {
+        if (pad.buttons[i].pressed || pad.buttons[i].value > 0.5) mask |= 1 << i;
+      }
+      const axis = value => Math.max(-1, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3);
+      return `${pad.index},${axis(pad.axes[0])},${axis(pad.axes[1])},${mask}`;
+    }).join(';');
+    if (snapshot !== lastPads) { gamepadProperty.value = snapshot; lastPads = snapshot; }
+  }
+  requestAnimationFrame(pollGamepads);
+}
+requestAnimationFrame(pollGamepads);
+// Keep the save observer alive across the browser's back/forward cache.
+window.addEventListener('pagehide', event => { if (!event.persisted) releaseProgress?.(); });

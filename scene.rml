@@ -1,0 +1,72 @@
+<Rive version="1" kind="fragment">
+    <!-- The native preview uses the OS title bar outside the game content. -->
+    <Artboard name="main" id="0:2" width="1280" height="720" clip="true"
+        styleId="0:5" viewModelId="0:60" defaultStateMachineId="0:7">
+        <Fill name="Window Background" id="0:3">
+            <SolidColor colorValue="FF140C24" id="0:4"/>
+        </Fill>
+        <LayoutComponentStyle name="Window Layout" id="0:5"
+            flexDirectionValue="column" layoutAlignmentType="topLeft"/>
+        <LayoutComponent name="Game Content" id="0:40" clip="true" styleId="0:41">
+            <LayoutComponentStyle name="Game Layout" id="0:41"
+                layoutWidthScaleType="fill" layoutHeightScaleType="fill"/>
+            <ScriptedLayout name="Game" id="0:42" scriptAssetId="0:80">
+                <FocusData id="0:43"/>
+            </ScriptedLayout>
+        </LayoutComponent>
+        <StateMachine name="Game" id="0:7">
+            <StateMachineLayer name="Root" id="0:8">
+                <AnyState id="0:9" x="200" y="-120"/>
+                <EntryState id="0:10" x="0" y="0"/>
+                <ExitState id="0:11" x="400" y="-120"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <ViewModel name="Window" id="0:60">
+        <ViewModelPropertyNumber name="completedLevels" id="0:66"/>
+        <ViewModelPropertyBoolean name="progressReady" id="0:67"/>
+        <ViewModelPropertyNumber name="progressRevision" id="0:68"/>
+        <ViewModelPropertyString name="progressStatus" id="0:69"/>
+        <ViewModelPropertyString name="browserGamepads" id="0:74"/>
+        <ViewModelInstance name="Default" id="0:63" exports="true">
+            <ViewModelInstanceNumber viewModelPropertyId="0:66" propertyValue="0" id="0:70"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:67" propertyValue="false" id="0:71"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:68" propertyValue="0" id="0:72"/>
+            <ViewModelInstanceString viewModelPropertyId="0:69" propertyValue="session" id="0:73"/>
+            <ViewModelInstanceString viewModelPropertyId="0:74" propertyValue="" id="0:75"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <!-- Dependencies register before their consumers. -->
+    <ScriptAsset file="font.luau" name="font" isModule="true" id="0:101"/>
+    <ScriptAsset file="tc_glyphs.luau" name="tc_glyphs" isModule="true" id="0:102"/>
+    <ScriptAsset file="gfx.luau" name="gfx" isModule="true" id="0:103"/>
+    <ScriptAsset file="remarks_catalog.luau" name="remarks_catalog" isModule="true" id="0:104"/>
+    <ScriptAsset file="localization.luau" name="localization" isModule="true" id="0:105"/>
+    <ScriptAsset file="armature.luau" name="armature" isModule="true" id="0:106"/>
+    <ScriptAsset file="motion.luau" name="motion" isModule="true" id="0:107"/>
+    <ScriptAsset file="pose.luau" name="pose" isModule="true" id="0:108"/>
+    <ScriptAsset file="powers.luau" name="powers" isModule="true" id="0:109"/>
+    <ScriptAsset file="profiles.luau" name="profiles" isModule="true" id="0:110"/>
+    <ScriptAsset file="power_art.luau" name="power_art" isModule="true" id="0:111"/>
+    <ScriptAsset file="heroes.luau" name="heroes" isModule="true" id="0:112"/>
+    <ScriptAsset file="art.luau" name="art" isModule="true" id="0:113"/>
+    <ScriptAsset file="attacks.luau" name="attacks" isModule="true" id="0:114"/>
+    <ScriptAsset file="campaign.luau" name="campaign" isModule="true" id="0:115"/>
+    <ScriptAsset file="remarks.luau" name="remarks" isModule="true" id="0:116"/>
+    <ScriptAsset file="speech.luau" name="speech" isModule="true" id="0:117"/>
+    <ScriptAsset file="tutorial.luau" name="tutorial" isModule="true" id="0:118"/>
+    <ScriptAsset file="progress.luau" name="progress" isModule="true" id="0:120"/>
+    <ScriptAsset file="level_map.luau" name="level_map" isModule="true" id="0:121"/>
+    <ScriptAsset file="browser_input.luau" name="browser_input" isModule="true" id="0:122"/>
+    <ScriptAsset file="game.luau" name="game" isModule="true" id="0:119"/>
+    <ScriptAsset file="main.luau" name="main" id="0:80"/>
+    <ScriptAsset file="movement_test.luau" name="movement_test" id="0:150"/>
+    <ScriptAsset file="campaign_test.luau" name="campaign_test" id="0:151"/>
+    <ScriptAsset file="coop_test.luau" name="coop_test" id="0:152"/>
+    <ScriptAsset file="localization_test.luau" name="localization_test" id="0:153"/>
+    <ScriptAsset file="remarks_test.luau" name="remarks_test" id="0:154"/>
+    <ScriptAsset file="render_test.luau" name="render_test" id="0:155"/>
+    <ScriptAsset file="tutorial_test.luau" name="tutorial_test" id="0:156"/>
+    <ScriptAsset file="progress_test.luau" name="progress_test" id="0:157"/>
+</Rive>

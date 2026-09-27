@@ -12,7 +12,38 @@ rive . --once     # write build/titans_brawl.riv
 
 ## Playing
 
-Press **Start** (or A) on the title screen. On the select screen, every
+On macOS, the **green window button at the top-left** enters full screen.
+Move the pointer to the top edge to reveal it again and leave full screen.
+The native preview uses the standard OS title bar and window controls.
+The browser build shows a custom top-left fullscreen button **only on Windows**
+when the browser supports fullscreen. macOS uses its normal window controls,
+with no extra button or reserved strip inside the game.
+
+Press **Start** (or A) on the title screen. The first start in a session opens
+a 26-second automatic tutorial: Robin performs real gameplay actions while
+an Xbox-style controller and both players' keyboard keys animate on the right.
+It covers movement, dash strikes, tap/held jumps, combos, aerial attacks,
+all three powers, and joining/pausing/returning to the menu.
+
+Skip with **Start / Enter / Esc / View** or the **Skip** button. Use **A / Space /
+Right** or **Next** to advance, and **Left** or **<** to revisit a step. Replay
+from **How to Play**, keyboard **H**, or controller **Y** on the main menu.
+The tutorial follows the selected English or Taiwan Chinese language and does
+not spend player resources or affect campaign progress.
+
+After the tutorial, the **level map** shows the route through all four stages.
+Open it directly with **Level Map** on the title screen or keyboard **M**.
+Only Jump City is available at first. Clear all four waves, including the boss
+and its reinforcements, to unlock the next stage. Completed stages remain
+available for replay. Choose a node with the mouse, movement keys or controller,
+then select **Play Level / Replay Level**, **A**, or **Enter**.
+
+The map's upper-right **Reset Progress** button (keyboard **R**, controller **Y**)
+opens a confirmation. **Keep Progress** is selected by default; confirming reset
+clears every completion and leaves only level 1 available. **Esc / B / View**
+cancels. Reset does not change the selected language.
+
+On the select screen, every
 controller or keyboard that presses Start joins, up to four players. Each player
 picks a different Titan with left/right and readies up with A. Once everyone is
 ready the game starts after 3 seconds, or right away if someone presses Start.
@@ -78,8 +109,10 @@ health percentage. Players waiting to respawn still count; players out of lives
 do not. Existing reinforcements remain for that wave, and continuing does not add
 them a second time. The next wave uses the current active player count.
 
-Each stage ends with a boss; clearing the
-first three restores health and energy and awards one life (up to three).
+Each stage ends with a boss. Clearing the first three returns to the map and
+selects the newly available stage; defeating Slade shows the victory screen.
+Press Start to return to the completed map. Every level attempt starts with
+full health, three lives and 60 energy. Joined players stay together between levels.
 
 | Stage | Setting | Boss |
 |---|---|---|
@@ -94,6 +127,40 @@ flank them or use knockdowns), and **Shock Bots** (jump over their electric puls
 Watch the attack warnings, change lanes to dodge projectiles, and jump over the
 marked slam areas. The HUD tracks the stage, local wave, and enemies remaining.
 
+## Browser saves and release build
+
+Browser play uses `web/`, a production host for the signed Rive game. It saves
+completed levels automatically to `localStorage` under
+`ttgo.campaign.progress.v1`. The save belongs to this browser and site origin,
+is shared by local co-op players, and survives a page reload or browser restart.
+Replaying earlier levels preserves later unlocks. Other open tabs synchronize
+completion and reset changes. Reset removes only this game's save.
+
+The native `rive .` preview has no browser storage and keeps progress only for
+the current run. The map says **Session Progress** there. In the browser it says
+**Saved in This Browser**, or **Saving Unavailable — Session Only** if storage is
+blocked. Private browsing follows the browser's own storage lifetime.
+
+```bash
+rive login                  # one-time authentication for Rive script signing
+cd web
+npm ci
+npm test                    # persistence, reload, reset and unavailable-storage cases
+npm run build               # signs the game and bundles web/dist for hosting
+```
+
+Serve `web/dist/` from a stable HTTP(S) origin. The host includes the WebGL2
+runtime, WASM, bundled Noto Sans TC font, browser controller input and a Windows-only
+top-left fullscreen button. This build command creates local release files; it does not
+publish a website or push the project to the Rive editor. Rive's server compiles
+and signs the scripts, so signing requires a logged-in session and network access.
+If authentication fails, the build stops before copying a game file into the host.
+
+Use **`rive .` for authoring previews**. Unsigned local builds cannot play in web
+runtimes. `npm run build:host` checks the host bundle without signing and omits
+the playable `.riv` file. See [the progress implementation notes](docs/level-progress.md)
+for the save contract and validation commands.
+
 ## Files
 
 English and **繁體中文（台灣）** are available from the main menu's top-right
@@ -105,7 +172,15 @@ source research and font regeneration details are in
 
 | File | What it holds |
 |---|---|
+| `scene.rml` | responsive game container, progress bindings and script registration |
 | `main.luau` | Rive layout entry point |
+| `tutorial.luau` | timed control demonstrations, animated controller/keycaps and tutorial navigation |
+| `tutorial_test.luau` | real Robin actions, input synchronization, skip/replay, co-op joining and localization |
+| `level_map.luau` | four-stage route, unlock states, stage details and reset confirmation |
+| `progress.luau` | sequential unlock rules and the Rive view-model save bridge |
+| `progress_test.luau` | stage selection, completion, replay, reset, hydration and browser controller regressions |
+| `browser_input.luau` | standard browser gamepad snapshots routed to the native input handler |
+| `web/` | signed browser release host, localStorage adapter, save tests and build script |
 | `campaign.luau` | enemy stats, stage identities, and all sixteen encounter rosters |
 | `campaign_test.luau` | campaign progression, new enemy behavior and co-op regressions |
 | `game.luau` | the game: input, modes, combat, AI, waves, camera, HUD |
@@ -132,7 +207,9 @@ source research and font regeneration details are in
 | `tc_glyphs.luau` | generated Noto Sans TC vector glyphs from the bundled WOFF2 |
 | `tools/bench_coop.py` | repeatable native Rive stress scene with four heroes and twelve enemies |
 
-To test a later wave, set `START_CHECKPOINT` near the top of `game.luau`.
+To inspect a later map state, run
+`rive . --data=completedLevels=2 --data=progressReady=true --key=m`.
+This injects a temporary save into the native preview; it does not write browser storage.
 
 Titans react in speech bubbles when enemies appear, they take damage, health
 gets low, they use each power, pick up pizza, clear a wave or get knocked out.
