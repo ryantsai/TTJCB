@@ -15,7 +15,7 @@ local function game(hero: number): any
     local app: any = (Game.create :: any)(nil)
     app.g.tutorialSeen=true
     press(app,257) -- Enter the level map.
-    press(app,257);press(app,257); app.g.slots[1].hero=hero
+    press(app,257); app.g.slots[1].hero=hero
     press(app,257); press(app,257); step(app,90)
     local g=app.g
     local f=g.slots[1].fighter

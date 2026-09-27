@@ -217,7 +217,7 @@ type Pickup = { x: number, y: number, t: number, dead: boolean }
 type Game = {
     locale: L.Locale,
     languageHover: number,
-    mode: string, -- title, tutorial, map, level_select, select, play, over, win
+    mode: string, -- title, tutorial, map, select, play, over, win
     progress: Progress.State,
     selectedLevel: number,
     runLevel: number,
@@ -1589,14 +1589,6 @@ local function menuAction(g: Game, action: string)
         elseif action=='back' then toTitle(g)
         elseif string.sub(action,1,5)=='level' then
             g.selectedLevel=math.clamp(tonumber(string.sub(action,6)) or 1,1,4)
-            g.mode,g.modeT='level_select',0
-        elseif action=='play' then
-            g.mode,g.modeT='level_select',0
-        end
-    elseif g.mode=='level_select' then
-        if action=='back' then g.mode,g.modeT='map',0
-        elseif string.sub(action,1,5)=='level' then
-            g.selectedLevel=math.clamp(tonumber(string.sub(action,6)) or 1,1,4)
         elseif action=='play' and Progress.canPlay(g.progress,g.selectedLevel) then
             local joined=false
             for _,s in g.slots do if s.dev~='' then joined=true;s.locked=false end end
@@ -1636,23 +1628,12 @@ local function updateMap(g: Game)
             if pressed(d,'L') or pressed(d,'U') then g.selectedLevel=math.max(1,g.selectedLevel-1)
             elseif pressed(d,'R') or pressed(d,'D') then g.selectedLevel=math.min(4,g.selectedLevel+1) end
             if pressed(d,'a') or pressed(d,'start') then
-                if slotOf(g,id)==nil then joinSlot(g,id) end
-                menuAction(g,'play')
+                if Progress.canPlay(g.progress,g.selectedLevel) then
+                    if slotOf(g,id)==nil then joinSlot(g,id) end
+                    menuAction(g,'play')
+                end
                 return
             end
-        end
-    end
-end
-
-local function updateLevelSelect(g: Game)
-    for id,d in g.devs do
-        if pressed(d,'cancel') or pressed(d,'back') or pressed(d,'b') then menuAction(g,'back');return end
-        if pressed(d,'L') or pressed(d,'U') then g.selectedLevel=math.max(1,g.selectedLevel-1)
-        elseif pressed(d,'R') or pressed(d,'D') then g.selectedLevel=math.min(4,g.selectedLevel+1) end
-        if pressed(d,'a') or pressed(d,'start') then
-            if slotOf(g,id)==nil then joinSlot(g,id) end
-            menuAction(g,'play')
-            return
         end
     end
 end
@@ -2057,8 +2038,6 @@ local function update(g: Game, dt: number)
         updateTutorial(g, dt)
     elseif g.mode == 'map' then
         updateMap(g)
-    elseif g.mode == 'level_select' then
-        updateLevelSelect(g)
     elseif g.mode == 'select' then
         updateSelect(g, dt)
     elseif g.mode == 'play' then
@@ -2590,8 +2569,6 @@ local function drawGame(g: Game)
         end
     elseif g.mode == 'map' then
         LevelMap.draw(g.locale,g.progress,g.selectedLevel,g.mapCleared,g.resetConfirm,g.resetYes,g.menuHover,g.t)
-    elseif g.mode == 'level_select' then
-        LevelMap.drawSelect(g.locale,g.progress,g.selectedLevel,g.menuHover,g.t)
     elseif g.mode == 'select' then
         drawSelect(g)
     elseif g.mode == 'play' then
@@ -2639,7 +2616,7 @@ function advance(self: Main, seconds: number): boolean
         end
         self.browserDevices=current
     end
-    if Progress.pull(self.g.progress,self.progressBridge) and (self.g.mode=='title' or self.g.mode=='map' or self.g.mode=='level_select') then
+    if Progress.pull(self.g.progress,self.progressBridge) and (self.g.mode=='title' or self.g.mode=='map') then
         self.g.selectedLevel=Progress.unlocked(self.g.progress)
         self.g.mapCleared=0
     end

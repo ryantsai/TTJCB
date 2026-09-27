@@ -35,9 +35,9 @@ After the tutorial, the **level map** shows the route through all four stages.
 Open it directly with **Level Map** on the title screen or keyboard **M**.
 Only Jump City is available at first. Clear all four waves, including the boss
 and its reinforcements, to unlock the next stage. Completed stages remain
-available for replay. Press **Space / A** or click a map node to open **Level
-Select**. There, choose a stage, then press **Space / A** or click **Play Level /
-Replay Level** to open character selection. **Esc / B** returns to the map.
+available for replay. Choose a stage on the map, then press **Space / A** or
+click **Play Level / Replay Level** to open character selection. Locked stages
+can be inspected but cannot be played. **Esc / B** returns to the title screen.
 
 The map's upper-right **Reset Progress** button (keyboard **R**, controller **Y**)
 opens a confirmation. **Keep Progress** is selected by default; confirming reset

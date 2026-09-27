@@ -24,7 +24,7 @@ return function(context:Context):Layout<Game.Main>
     local app:any=Game.create(context)
     app.g.tutorialSeen=true
     press(app,257) -- Enter the level map.
-    press(app,257);press(app,257);press(app,257);press(app,257);step(app,90)
+    press(app,257);press(app,257);press(app,257);step(app,90)
     press(app,344)
     for id=0,1 do
         app.gamepadEvent(app,{deviceId=id,isStandardMapping=true,leftStick=Vector.xy(0,0),

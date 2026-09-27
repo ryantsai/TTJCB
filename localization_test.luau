@@ -141,7 +141,6 @@ return function(): Tests
             expect(app.g.locale).is('en')
             pad(app, false)
             press(app, 257) -- Level map.
-            press(app, 257) -- Level select.
             press(app, 257) -- Character select.
             press(app, 257) -- Ready.
             press(app, 257) -- Start.
@@ -158,7 +157,6 @@ return function(): Tests
             app.g.tutorialSeen = true
             press(app, 258)
             press(app, 257) -- Level map.
-            press(app, 257) -- Level select.
             press(app, 257) -- Character select.
             press(app, 257) -- Ready.
             press(app, 257) -- Start.

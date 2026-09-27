@@ -41,7 +41,7 @@ return function():Tests
             expect(a.g.devs.demo==nil).is(true)
             expect(#a.g.fighters).is(0)
             expect(a.g.demo==nil).is(true)
-            press(a,257);press(a,257);press(a,257);press(a,257);step(a,90)
+            press(a,257);press(a,257);press(a,257);step(a,90)
             expect(a.g.mode).is('play')
             expect(a.g.slots[1].fighter.hp).is(110)
             press(a,257);press(a,256);press(a,257)

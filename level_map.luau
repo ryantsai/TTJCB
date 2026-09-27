@@ -34,17 +34,11 @@ end
 function M.actionAt(mode:string,x:number,y:number,confirm:boolean):string?
     for key,b in M.bounds do
         local allowed=if mode=='title' then key=='map' elseif mode=='map' then
-            (if confirm then key=='keep' or key=='confirm' else key=='reset' or key=='back' or key=='play')
-            elseif mode=='level_select' then key=='back' or key=='play' else false
+            (if confirm then key=='keep' or key=='confirm' else key=='reset' or key=='back' or key=='play') else false
         if allowed and x>=b.x and x<=b.x+b.w and y>=b.y and y<=b.y+b.h then return key end
     end
     if mode=='map' and not confirm then
         for i,n in nodes do if math.abs(x-n[1])<132 and y>=n[2]-114 and y<=n[2]+102 then return `level{i}` end end
-    elseif mode=='level_select' then
-        for i=1,4 do
-            local left=50+(i-1)*304
-            if x>=left and x<=left+276 and y>=178 and y<=471 then return `level{i}` end
-        end
     end
     return nil
 end
@@ -122,11 +116,11 @@ function M.draw(locale:L.Locale,p:P.State,selected:number,cleared:number,confirm
         elseif selected<=p.cleared then 'Cleared! Replay this level anytime.' else 'Defeat the boss to unlock the next level.'
     if selected==4 and P.canPlay(p,selected) and p.cleared<4 then detail='Defeat Slade and save Jump City.' end
     text(locale,detail,440,580,15,MUTED,0,520)
-    button(locale,'play','SELECT LEVEL',hover,YELLOW)
+    button(locale,'play',if not P.canPlay(p,selected) then 'LOCKED' elseif selected<=p.cleared then 'REPLAY LEVEL' else 'PLAY LEVEL',hover,YELLOW,not P.canPlay(p,selected))
     button(locale,'back','BACK',hover,PAPER)
     local status=if p.status=='saved' then 'SAVED IN THIS BROWSER' elseif p.status=='unavailable' then 'SAVING UNAVAILABLE - SESSION ONLY' else 'SESSION PROGRESS'
     text(locale,status,640,674,12,MUTED,.5,630)
-    text(locale,'MOVE: SELECT   A / ENTER: DETAILS   R / Y: RESET',1243,644,11,MUTED,1,745)
+    text(locale,'MOVE: SELECT   A / SPACE: PLAY   R / Y: RESET',1243,644,11,MUTED,1,745)
     if confirm then
         G.rect(0,0,1280,720,G.fade(INK,.88))
         G.rrect(314,232,652,270,16,G.hex(0x2A1E3C),4)
@@ -138,38 +132,5 @@ function M.draw(locale:L.Locale,p:P.State,selected:number,cleared:number,confirm
         local b=M.bounds[if resetYes then 'confirm' else 'keep']
         G.polyline({b.x,b.y+b.h+10,b.x+b.w,b.y+b.h+10},3,YELLOW)
     end
-end
-function M.drawSelect(locale:L.Locale,p:P.State,selected:number,hover:string,t:number)
-    G.rect(0,0,1280,720,G.hex(0x140C24))
-    G.poly({0,0,715,0,330,720,0,720},G.hex(0x241434))
-    text(locale,'LEVEL SELECT',42,40,45,PAPER)
-    text(locale,L.format(locale,'{count} / 4 LEVELS CLEARED',{count=p.cleared}),45,103,18,CYAN)
-    for i=1,4 do
-        local x=50+(i-1)*304
-        local available=P.canPlay(p,i)
-        local active=i==selected
-        local color=if i<=p.cleared then GREEN elseif available then YELLOW else MUTED
-        G.rrect(x,178,276,293,14,INK,4)
-        G.rrect(x+3,181,270,287,11,if active then G.hex(0x3D3151) else G.hex(0x2A213B),2)
-        if active then G.rrect(x,178,276,293,14,CYAN,3) end
-        landmark(i,x+138,325,if available then color else G.hex(0x62576E))
-        G.oellipse(x+138,363,32,32,if available then color else G.hex(0x393044),3)
-        if available then G.text(tostring(i),x+138,344,27,INK,.5,color)
-        else lock(x+138,363,MUTED) end
-        text(locale,L.format(locale,'LEVEL {level}',{level=i}),x+138,196,15,color,.5,240)
-        text(locale,C.stages[i].name,x+138,408,19,if available then PAPER else MUTED,.5,244)
-        text(locale,if i<=p.cleared then 'CLEARED' elseif available then 'AVAILABLE' else 'LOCKED',x+138,440,13,color,.5)
-        if active then G.polyline({x+74,481+math.sin(t*4)*2,x+202,481+math.sin(t*4)*2},4,CYAN) end
-    end
-    local available=P.canPlay(p,selected)
-    G.rrect(32,509,1216,119,12,G.hex(0x2A1E3C),3)
-    text(locale,L.format(locale,'4 WAVES / {boss}',{boss=L.text(locale,bosses[selected])}),52,531,20,YELLOW,0,710)
-    local detail=if not available then L.format(locale,'Clear {level} to unlock.',{level=L.text(locale,C.stages[selected-1].name)})
-        elseif selected<=p.cleared then 'Cleared! Replay this level anytime.' else 'Defeat the boss to unlock the next level.'
-    if selected==4 and available and p.cleared<4 then detail='Defeat Slade and save Jump City.' end
-    text(locale,detail,52,575,16,MUTED,0,900)
-    button(locale,'play',if not available then 'LOCKED' elseif selected<=p.cleared then 'REPLAY LEVEL' else 'PLAY LEVEL',hover,YELLOW,not available)
-    button(locale,'back','BACK TO MAP',hover,PAPER)
-    text(locale,'MOVE: SELECT   A / ENTER: CONTINUE   B / ESC: BACK',1237,659,12,MUTED,1,790)
 end
 return M

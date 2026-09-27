@@ -30,7 +30,6 @@ local function app(cleared:number?,ready:boolean?):(any,any)
     return a,props
 end
 local function launch(a:any)
-    if a.g.mode=='map' then press(a,257) end
     press(a,257);press(a,257);press(a,257);step(a,90)
     a.g.slots[1].fighter.invuln=10000
 end
@@ -52,27 +51,23 @@ end
 
 return function():Tests
     return function(test:Tester)
-        test.case('browser keyboard snapshot makes Space start and traverse the full menu flow once',function(expect)
+        test.case('browser keyboard snapshot makes Space start and enter character selection once',function(expect)
             local a,p=app()
             p.browserKeyboard.value='1,32,down;2,32,up';step(a,1)
             expect(a.g.mode).is('map')
             step(a,3);expect(a.g.mode).is('map')
             p.browserKeyboard.value='1,32,down;2,32,up;3,32,down;4,32,up';step(a,1)
-            expect(a.g.mode).is('level_select')
-            p.browserKeyboard.value='5,32,down;6,32,up';step(a,1)
             expect(a.g.mode).is('select')
             local events,seq=B.decodeKeyboard('6,32,up;7,257,down;8,257,up',6)
             expect(#events).is(2);expect(seq).is(8)
             expect(#B.decodeKeyboard(string.rep('x',2049),8)).is(0)
         end)
-        test.case('start opens map, then level select, then character selection with working back and lock states',function(expect)
+        test.case('map selects an unlocked level then opens character selection',function(expect)
             local a=app()
             press(a,257);expect(a.g.mode).is('map')
-            press(a,257);expect(a.g.mode).is('level_select')
             press(a,68);expect(a.g.selectedLevel).is(2)
-            press(a,257);expect(a.g.mode).is('level_select')
-            press(a,256);expect(a.g.mode).is('map')
-            click(a,180,356);expect(a.g.mode).is('level_select')
+            press(a,257);expect(a.g.mode).is('map')
+            click(a,180,356);expect(a.g.mode).is('map')
             expect(a.g.selectedLevel).is(1)
             click(a,1100,579);expect(a.g.mode).is('select')
         end)
@@ -82,9 +77,8 @@ return function():Tests
             expect(P.canPlay(a.g.progress,1)).is(true)
             for level=2,4 do
                 press(a,68);press(a,257);click(a,1100,579)
-                expect(a.g.selectedLevel).is(level);expect(a.g.mode).is('level_select')
+                expect(a.g.selectedLevel).is(level);expect(a.g.mode).is('map')
                 expect(P.canPlay(a.g.progress,level)).is(false)
-                press(a,256);expect(a.g.mode).is('map')
             end
             click(a,180,356);launch(a)
             expect(a.g.mode).is('play');expect(a.g.runLevel).is(1)
@@ -182,7 +176,7 @@ return function():Tests
                 snapshot(a,p,`0,0,0,{mask}`);snapshot(a,p,'0,0,0,0')
             end
             pad(512);expect(a.g.mode).is('map');expect(a.g.slots[1].dev).is('pad0')
-            pad(32768);pad(1);expect(a.g.mode).is('level_select');expect(a.g.selectedLevel).is(2)
+            pad(32768);pad(1);expect(a.g.mode).is('map');expect(a.g.selectedLevel).is(2)
             pad(16384);pad(1);expect(a.g.mode).is('select')
             pad(1);pad(512);expect(a.g.mode).is('play')
             snapshot(a,p,'');expect(a.g.paused).is(true);expect(a.g.devs.pad0).is(nil)
