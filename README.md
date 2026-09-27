@@ -49,6 +49,8 @@ controller or keyboard that presses Start joins, up to four players. Each player
 picks a different Titan with left/right and readies up with A. Once everyone is
 ready the game starts after 3 seconds, or right away if someone presses Start.
 Players can also drop in mid-game by pressing Start.
+Character cards label their three powers Skill 1, Skill 2, and Super
+(技能1、技能2、絕招 in Traditional Chinese).
 
 | Action | Controller | Keyboard 1 | Keyboard 2 |
 |---|---|---|---|

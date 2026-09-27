@@ -44,6 +44,7 @@ L.catalog = {
     ['TO JOIN'] = '加入遊戲', ['KEYBOARD 1'] = '鍵盤 1', ['KEYBOARD 2'] = '鍵盤 2',
     ['CONTROLLER {id}'] = '控制器 {id}',
     ['POWER'] = '威力', ['SPEED'] = '速度', ['HEALTH'] = '生命',
+    ['Skill 1'] = '技能1', ['Skill 2'] = '技能2', ['Super'] = '絕招',
     ['READY!'] = '準備好了！', ['STARTING IN {seconds}'] = '{seconds} 秒後出發',
     ['MOVE: PICK   A: READY   B: BACK   START: JOIN'] = '方向：選擇   A：準備   B：返回   START：加入',
     ['JUMP CITY IS SAFE!'] = '雀躍城安全了！', ['TITANS WIN!'] = '悍將們獲勝！',

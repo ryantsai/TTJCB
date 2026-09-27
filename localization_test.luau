@@ -77,6 +77,13 @@ return function(): Tests
             expect(L.format('zh-TW', '{stage}/4  {name}  -  WAVE {wave}/4', { stage = 4, name = L.text('zh-TW', 'SLADE HQ'), wave = 3 })).is('4/4  史萊德總部  第 3/4 波')
             expect(L.format('en', 'STARTING IN {seconds}', { seconds = 2 })).is('STARTING IN 2')
             expect(L.text('zh-TW', 'P1')).is('P1')
+            expect(L.text('zh-TW', 'Skill 1')).is('技能1')
+            expect(L.text('zh-TW', 'Skill 2')).is('技能2')
+            expect(L.text('zh-TW', 'Super')).is('絕招')
+            for _,label in {'Skill 1','Skill 2','Super'} do
+                expect(G.textWidth(label,17)).lessThan(250)
+                expect(G.textWidth(L.text('zh-TW',label),17)).lessThan(250)
+            end
         end)
 
         test.case('every localized character has a bundled Noto Sans TC outline and placeholders match', function(expect)
