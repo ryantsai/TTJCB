@@ -65,7 +65,8 @@ Cinderblock.
 | `game.luau` | the game: input, modes, combat, AI, waves, camera, HUD |
 | `movement_test.luau` | regression tests using the game's input and update callbacks |
 | `heroes.luau` | the five Titans, drawn in the Teen Titans Go! style |
-| `profiles.luau` | right-facing gameplay heads and trailing hair; mirrored when facing left |
+| `armature.luau` | side-view arm reach and consistent elbow bend for gameplay |
+| `profiles.luau` | three-quarter gameplay faces and trailing hair; opponent-facing gaze in either direction |
 | `art.luau` | villains, Cinderblock, effects and the Jump City stage |
 | `pose.luau` | the animation pose shared by the drawing modules |
 | `powers.luau` | secondary/ultimate names, costs, timing, reach and damage |
@@ -76,3 +77,7 @@ Cinderblock.
 | `font.luau` | the stroke font, since Rive scripts have no text API |
 
 To test a later wave, set `START_CHECKPOINT` near the top of `game.luau`.
+
+### Movement feel
+
+Tap gamepad **A** (keyboard **K / Space**) for a short hop, or hold it for a higher jump. A jump pressed just before touching down is buffered. Press **X** (**J**) in the air for the hero's aerial strike. Takeoff has a brief crouch; rising, apex, falling and landing poses are distinct. Landing recovery is visual and does not lock movement or attacks. Robin and Beast Boy use springy strides, Cyborg has a heavier gait, and Starfire and Raven glide. Normal attacks retain their character-specific combos with two-handed staff grips, anticipation and recovery.

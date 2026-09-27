@@ -133,11 +133,11 @@ function V.effects(kind: string, p: P.Pose)
             end
         elseif kind == 'cyborg' then
             local pulse = 1 + math.sin(t * 55) * .07
-            G.line(63,-81,1020,-81,61*pulse,G.fade(color,.2))
-            G.line(63,-81,1020,-81,36*pulse,color)
-            G.line(63,-81,1020,-81,15*pulse,G.WHITE)
-            G.glow(63,-81,42,color,.9)
-            for i = 1, 5 do ring(63+i*155,-81,12,28,2,G.WHITE) end
+            G.line(47,-80,1004,-80,61*pulse,G.fade(color,.2))
+            G.line(47,-80,1004,-80,36*pulse,color)
+            G.line(47,-80,1004,-80,15*pulse,G.WHITE)
+            G.glow(47,-80,42,color,.9)
+            for i = 1, 5 do ring(47+i*155,-80,12,28,2,G.WHITE) end
         elseif kind == 'starfire' then
             local radius = power.reach / 1.2 * (.7 + progress*.3)
             G.glow(0,-72,100,color,.6*(1-progress*.5))

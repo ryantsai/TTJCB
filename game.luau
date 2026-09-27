@@ -21,6 +21,8 @@ local H = G.H
 local FMIN = 478 -- nearest the shop fronts a fighter can stand
 local FMAX = 698 -- nearest the camera
 local GRAV = 1900
+local TAKEOFF = .05
+local LANDING = .18
 local SPECIAL_COST = 30
 local HERO_SCALE = 1.2
 local START_CHECKPOINT = 1 -- raise to test later waves
@@ -42,11 +44,11 @@ type Hero = {
 
 local HEROES: { Hero } = {
     {
-        key = 'robin', name = 'ROBIN', hp = 110, speed = 255, power = 1.0, jump = 640, float = 1,
+        key = 'robin', name = 'ROBIN', hp = 110, speed = 255, power = 1.0, jump = 700, float = 1,
         color = G.hex(0xD7263D), shout = 'BIRDARANG!', special = 'BIRDARANG',
     },
     {
-        key = 'cyborg', name = 'CYBORG', hp = 140, speed = 210, power = 1.25, jump = 590, float = 1,
+        key = 'cyborg', name = 'CYBORG', hp = 140, speed = 210, power = 1.25, jump = 640, float = 1,
         color = G.hex(0x2F6FD6), shout = 'BOOYAH!', special = 'SONIC CANNON',
     },
     {
@@ -58,7 +60,7 @@ local HEROES: { Hero } = {
         color = G.hex(0x6A4CC9), shout = 'AZARATH METRION ZINTHOS!', special = 'DARK BURST',
     },
     {
-        key = 'beast', name = 'BEAST BOY', hp = 105, speed = 290, power = 0.95, jump = 690, float = 1,
+        key = 'beast', name = 'BEAST BOY', hp = 105, speed = 290, power = 0.95, jump = 740, float = 1,
         color = G.hex(0x6DBB45), shout = 'RHINO TIME, DUDE!', special = 'RHINO CHARGE',
     },
 }
@@ -159,6 +161,10 @@ type Fighter = {
     speed: number,
     power: number,
     jump: number,
+    jumpBuffer: number,
+    jumpCut: boolean,
+    airTime: number,
+    landing: number,
     float: number,
     scale: number,
     radius: number,
@@ -370,7 +376,7 @@ local function newFighter(g: Game, kind: string, team: number, x: number, y: num
         id = g.nextId, team = team, kind = kind, hero = 0, slot = 0, x = x, y = y, z = 0,
         vx = 0, vy = 0, vz = 0, facing = 1, hp = 50, maxHp = 50, state = 'idle', st = 0,
         combo = 0, queued = false, hit = {}, invuln = 0, flash = 0, speed = 150, power = 1,
-        jump = 600, float = 1, scale = 1, radius = 22, reach = 64, dmg = 8, windup = 0.35,
+        jump = 600, jumpBuffer = 0, jumpCut = false, airTime = 0, landing = 0, float = 1, scale = 1, radius = 22, reach = 64, dmg = 8, windup = 0.35,
         pose = A.newPose(), ai = rnd(0.5, 2), cd = rnd(0.6, 1.6), armor = 0, removed = false,
         sp = 0, entering = false, hitT = 99, move = 0,
     }
@@ -702,6 +708,8 @@ local function updatePlayer(g: Game, s: Slot, f: Fighter, dt: number)
     local state = f.state
 
     s.energy = math.min(100, s.energy + dt * 4)
+    f.jumpBuffer = math.max(0, f.jumpBuffer-dt)
+    if pressed(dev,'a') then f.jumpBuffer=.12 end
 
     if (state == 'idle' or state == 'walk') and math.abs(mx) > .2 then f.facing = sign(mx) end
     if (state == 'idle' or state == 'walk' or state == 'attack') and requestPower(g, f, s, dev) then return end
@@ -716,15 +724,34 @@ local function updatePlayer(g: Game, s: Slot, f: Fighter, dt: number)
         if moving ~= (state == 'walk') then
             f.state = if moving then 'walk' else 'idle'
         end
-        if pressed(dev, 'a') then
-            setState(f, 'air')
-            f.vz = f.jump
-            f.z = 1
-            addFx(g, 'dust', f.x, f.y, 0, 0.35, '', G.WHITE, 1)
+        if f.jumpBuffer > 0 then
+            setState(f, 'takeoff')
+            f.jumpBuffer=0
+            f.jumpCut=false
+            f.airTime=0
+            f.landing=0
+            f.queued=pressed(dev,'x')
         elseif pressed(dev, 'x') then
             startAttack(f, 1)
         end
+    elseif state == 'takeoff' then
+        f.vx=mx*f.speed*.7
+        f.vy=my*f.speed*.5
+        if math.abs(mx)>.2 then f.facing=sign(mx) end
+        f.queued=f.queued or pressed(dev,'x')
+        if f.st >= TAKEOFF then
+            setState(f,if f.queued then 'jumpatk' else 'air')
+            f.queued=false
+            f.vz=f.jump
+            f.z=1
+            addFx(g,'launch',f.x,f.y,0,.25,'',HEROES[f.hero].color,if f.kind=='cyborg' then 1.3 else 1)
+        end
     elseif state == 'air' or state == 'jumpatk' then
+        -- A tap makes a short hop; holding A preserves the full launch arc.
+        if not f.jumpCut and (not dev or not dev.held['a']) and f.vz>0 then
+            f.vz=math.min(f.vz,f.jump*.68)
+            f.jumpCut=true
+        end
         f.vx = mx * f.speed * 0.85
         f.vy = my * f.speed * 0.4
         if math.abs(mx) > 0.2 then
@@ -734,7 +761,11 @@ local function updatePlayer(g: Game, s: Slot, f: Fighter, dt: number)
             setState(f, 'jumpatk')
         end
         if f.state == 'jumpatk' then
-            sweep(g, f, f.reach + 10, 30, 90, 13 * f.power, 300, true, 360)
+            if f.st>=.06 and f.st<=.24 then
+                sweep(g, f, f.reach + 10, 30, 90, 13 * f.power, 300, true, 360)
+            elseif f.st>=.42 then
+                setState(f,'air')
+            end
         end
     elseif state == 'attack' then
         local attack = Attacks.get(f.kind, f.combo)
@@ -968,13 +999,16 @@ end
 -- Physics and shared state logic ------------------------------------------------------------
 
 local function physics(g: Game, f: Fighter, dt: number)
+    f.landing=math.max(0,f.landing-dt)
     f.x += f.vx * dt
     f.y += f.vy * dt
     local landed = false
     if f.z > 0 or f.vz > 0 then
+        f.airTime+=dt
         local grav = GRAV
-        if (f.state == 'air' or f.state == 'jumpatk') and f.vz < 0 then
-            grav *= f.float
+        if f.state == 'air' or f.state == 'jumpatk' then
+            if f.vz < 0 then grav *= f.float * (if f.float==1 then 1.12 else 1) end
+            if math.abs(f.vz)<90 then grav *= .72 end
         end
         f.vz -= grav * dt
         f.z += f.vz * dt
@@ -1011,7 +1045,11 @@ local function physics(g: Game, f: Fighter, dt: number)
         f.invuln = math.max(f.invuln, if f.team == 1 then 1.2 else 0.3)
     elseif (s == 'air' or s == 'jumpatk') and landed then
         setState(f, 'idle')
-        addFx(g, 'dust', f.x, f.y, 0, 0.3, '', G.WHITE, 1)
+        f.landing=LANDING
+        f.airTime=0
+        local heavy=f.kind=='cyborg'
+        addFx(g,'landing',f.x,f.y,0,if heavy then .38 else .28,'',HEROES[f.hero].color,if heavy then 1.5 else 1)
+        if heavy then g.shake=math.max(g.shake,.075) end
     elseif s == 'enter' and landed then
         setState(f, 'idle')
         addFx(g, 'dust', f.x, f.y, 0, 0.4, '', G.WHITE, 1.4)
@@ -1034,8 +1072,15 @@ local function updatePose(g: Game, f: Fighter, dt: number)
     p.t = g.t + f.id * 0.37
     local speed = math.sqrt(f.vx * f.vx + f.vy * f.vy)
     local walking = (f.state == 'walk' or f.state == 'idle') and speed > 20
-    p.walk += ((if walking then 1 else 0) - p.walk) * math.min(1, dt * 10)
-    p.phase += dt * (6 + speed * 0.03)
+    p.speed=math.clamp(speed/f.speed,0,1)
+    p.walk += ((if walking then p.speed else 0) - p.walk) * math.min(1, dt * 14)
+    local stride=if f.kind=='cyborg' then 27 elseif f.kind=='beast' then 19 else 22
+    if walking then p.phase+=speed*dt*.56*math.pi/(stride*f.scale) end
+    p.rise=math.clamp(f.vz/f.jump,-1,1)
+    p.airTime=f.airTime
+    p.launch=if f.state=='takeoff' then math.sin(math.min(1,f.st/TAKEOFF)*math.pi/2) else 0
+    p.land=f.landing/LANDING
+    p.settle=0
     p.air = f.z > 1 and f.state ~= 'down' and f.state ~= 'ko'
     p.hurt = f.state == 'hurt'
     p.ko = f.state == 'ko'
@@ -1060,9 +1105,13 @@ local function updatePose(g: Game, f: Fighter, dt: number)
         p.move = f.combo
         p.ext = Motion.strike(f.st, dur, activeStart, activeEnd)
         p.windup = Motion.windup(f.st, activeStart, p.ext)
+        p.settle=math.clamp((f.st-activeEnd)/(dur-activeEnd),0,1)
     elseif f.state == 'jumpatk' then
         p.move = 4
-        p.ext = 1
+        p.ext = Motion.strike(f.st,.42,.06,.24)
+        p.windup = Motion.windup(f.st,.06,p.ext)
+        p.active=f.st>=.06 and f.st<=.24
+        p.stroke=math.clamp((f.st-.06)/.18,0,1)
     elseif f.state == 'secondary' or f.state == 'ultimate' then
         local power = Powers.get(f.kind, f.state == 'ultimate')
         p.move = if f.state == 'ultimate' then 9 else 8
@@ -1676,6 +1725,18 @@ local function drawWorld(g: Game)
             G.translate(sx, sy)
             G.scale(e.size, e.size)
             A.dust(0, 0, k)
+            G.restore()
+        elseif e.kind == 'launch' or e.kind == 'landing' then
+            G.save()
+            G.translate(sx,sy)
+            G.scale(e.size,e.size)
+            G.opacity(1-k)
+            local r=12+k*(if e.kind=='landing' then 58 else 32)
+            G.ring(0,0,r,r*.22,2.4,G.fade(e.color,.7))
+            for side=-1,1,2 do
+                G.ellipse(side*r*.8,-3-k*7,5+k*9,3+k*4,G.fade(G.WHITE,.55))
+                G.line(side*10,-6,side*(15+k*18),-8-k*13,1.8,G.fade(e.color,.75))
+            end
             G.restore()
         elseif e.kind == 'dark' then
             A.darkBurst(sx, e.y, 60 + k * 200, 1 - k * k)

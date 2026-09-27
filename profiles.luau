@@ -1,199 +1,162 @@
--- Right-facing gameplay heads. Portraits keep their separate frontal artwork.
--- Every nose, eye line and hair silhouette is authored toward local +x.
+-- Three-quarter gameplay drawings, shaped against the show's character lineup.
+-- Features share one face plane; the far eye is only lightly foreshortened.
+-- The title/select artwork remains in heroes.luau.
 local G = require('gfx')
-local H = G.hex
-local I = G.INK
+local H, I = G.hex, G.INK
 local F = {}
 
 function F.robin(x: number, y: number, hurt: boolean)
-    G.save()
-    G.translate(x, y)
-    local skin, hair = H(0xF7BEA5), H(0x0A0A12)
-    G.contour({ -20, -18,
-        -7, -27, 17, -24, 22, -12,
-        25, -5, 23, -2, 30, 3,
-        32, 5, 26, 7, 24, 7,
-        26, 17, 18, 22, 4, 23,
-        -14, 22, -27, 2, -20, -18,
-    }, skin, 1.8)
-    G.poly({ -21, 7, -28, -10, -34, -24, -25, -21,
-        -26, -36, -16, -29, -11, -42, -4, -33, 7, -40,
-        10, -31, 21, -32, 26, -20, 23, -9, 13, -15,
-        5, -11, 2, -17, -9, -11, -14, 6 }, hair, 1.6)
-    -- Mask band wraps back to the visible ear; a single eye reads in profile.
-    G.poly({ -18, -2, 0, -11, 22, -10, 27, 4, 20, 11,
-        7, 12, -1, 6, -17, 4 }, hair, 1.2)
-    G.contour({ 1, -7,
-        7, -6, 16, -3, 22, 0,
-        19, 10, 8, 13, 3, 5,
-        1, 2, 0, -3, 1, -7,
-    }, G.WHITE)
-    G.oellipse(-17, 5, 4.5, 6, skin, 1.4)
-    G.polyline({ -18, 2, -15, 3, -17, 7 }, 1, H(0xD98C78))
-    if hurt then G.line(4, 2, 20, 3, 2, hair) end
-    G.polyline({ 12, 16, 18, 17, 24, 14 }, 1.2, I)
+    G.save(); G.translate(x,y)
+    local skin, hair = H(0xF7BEA5), H(0x090A10)
+    G.oellipse(-24,3,4.2,6.4,skin,1.5)
+    G.contour({ -23,-17, -13,-27,12,-26,23,-16,
+        29,-4,27,12,18,18, 12,22,8,24,4,25,
+        -9,22,-21,16,-24,7, -27,0,-27,-9,-23,-17 },skin,1.6)
+    -- Three broad swept peaks and the distinctive central widow's peak.
+    G.poly({ -24,1,-28,-17,-24,-26,-21,-22,-11,-34,-12,-28,
+        5,-39,16,-29,15,-35,27,-21,27,-4,22,-12,
+        14,-16,7,-17,3,-8,-2,-12,-5,-19,-16,-15,-21,-9 },hair,1.5)
+    G.contour({ -22,-12, -13,-11,-1,-3,5,3,
+        0,13,-12,17,-19,9, -23,4,-24,-6,-22,-12 },hair,1.1)
+    G.contour({ 24,-12, 27,-4,26,5,22,10,
+        15,16,8,11,5,3, 10,-3,18,-9,24,-12 },hair,1.1)
+    G.contour({ -19,-8, -13,-5,-4,0,1,4,
+        -4,12,-13,12,-17,7, -20,3,-20,-4,-19,-8 },G.WHITE)
+    G.contour({ 22,-8, 24,-1,22,6,19,8,
+        14,11,10,8,8,4, 12,-1,18,-5,22,-8 },G.WHITE)
+    if hurt then G.line(-17,2,-3,5,2,hair); G.line(11,4,22,0,1.8,hair) end
+    G.contour({ 1,17, 6,19,11,19,16,15,
+        12,19,6,21,1,17 },hair)
     G.restore()
 end
 
 function F.cyborg(x: number, y: number, hurt: boolean)
-    G.save()
-    G.translate(x, y)
+    G.save(); G.translate(x,y)
     local skin, metal = H(0xA86858), H(0xCDD2DF)
-    G.contour({ -20, -19,
-        -10, -27, 14, -24, 22, -16,
-        26, -11, 23, -3, 29, 2,
-        33, 5, 28, 8, 24, 8,
-        26, 17, 22, 23, 8, 25,
-        -6, 25, -20, 16, -22, 2,
-        -24, -8, -24, -14, -20, -19,
-    }, skin, 1.8)
-    -- Rear skull plate and temple circuitry follow the turn of the head.
-    G.contour({ -20, -19,
-        -14, -24, -3, -25, 5, -24,
-        2, -15, -2, -9, -7, -4,
-        -10, 5, -8, 15, -6, 21,
-        -16, 17, -22, 8, -22, 2,
-        -24, -8, -24, -14, -20, -19,
-    }, metal, 1)
-    G.poly({ -18, -19, 1, -22, -3, -12, -17, -9 }, H(0x91EEF1), 0.8)
-    G.polyline({ -13, -18, -13, -13, -7, -13 }, 1.1, H(0x3FA8C8))
-    G.oellipse(-14, 2, 5, 6, H(0x6E7080), 1.2)
-    G.oellipse(-13, 2, 2.7, 3, H(0xE80050), 0.7)
-    G.oellipse(12, -3, 6, 6, G.WHITE, 1)
-    G.ellipse(15, -2.5, 2.1, 3.6, I)
-    G.polyline({ 4, -10, 12, -12, 21, -8 }, 2.6, I)
-    if hurt then
-        G.line(11, 15, 24, 15, 1.5, I)
-    else
-        G.contour({ 3, 12, 11, 15, 19, 15, 25, 11,
-            22, 22, 9, 23, 3, 12,
-        }, G.WHITE, 1)
-    end
-    G.poly({ 6, 23, 15, 22, 17, 25, 8, 26 }, metal, 0.8)
+    -- A flat crown and strong jaw, rather than a circular baby face.
+    G.contour({ -21,-21, -10,-25,9,-23,21,-17,
+        27,-8,28,11,19,23, 10,29,-6,27,-17,19,
+        -24,9,-27,-10,-21,-21 },skin,1.7)
+    G.oellipse(-23,-2,4.5,6,skin,1.3)
+    G.contour({ 9,-22, 18,-20,23,-17,24,-11,
+        29,2,27,15,19,23, 15,26,12,26,10,26,
+        16,11,13,-7,9,-22 },metal,1.3)
+    G.poly({ 12,-18,21,-15,23,-8,13,-9 },H(0x91EEF1),.8)
+    G.oellipse(-6,-3,6.4,6.8,G.WHITE,1.1)
+    G.ellipse(-3.5,-2,2,3.7,I)
+    G.poly({ -14,-11,-7,-15,3,-8,2,-5,-6,-9,-13,-7 },I)
+    G.poly({ 12,-6,26,-5,26,2,13,2 },I,1)
+    G.contour({ 15,0, 19,0,22,0,24,0,
+        25,9,15,10,15,0 },H(0xE80050),.7)
+    G.polyline({ 4,0,9,7,5,8,1,6 },1.1,I)
+    if hurt then G.line(-9,15,14,16,1.5,I)
+    else G.contour({ -13,10, -4,16,8,18,19,12,
+        9,19,-2,20,-13,10 },I) end
+    G.contour({ 1,24, 3,21,8,21,11,24,
+        12,26,12,27,11,28, 7,29,3,28,0,27,
+        0,26,0,25,1,24 },metal,1)
     G.restore()
 end
 
 function F.beast(x: number, y: number, hurt: boolean)
-    G.save()
-    G.translate(x, y)
-    local skin, hair = H(0xA2E84A), H(0x487A53)
-    G.contour({ -22, -13,
-        -10, -23, 13, -24, 23, -13,
-        27, -6, 24, -2, 31, 3,
-        35, 6, 29, 9, 25, 9,
-        26, 19, 16, 23, 4, 23,
-        -17, 23, -29, 7, -22, -13,
-    }, skin, 1.7)
-    G.poly({ -21, 1, -28, -9, -34, -12, -26, -21, -31, -22,
-        -14, -31, -3, -28, 10, -33, 23, -27, 26, -17,
-        16, -20, 10, -12, 8, -20, -1, -13, -1, -21,
-        -11, -12, -13, 2 }, hair, 1.5)
-    G.contour({ -15, -2,
-        -22, -4, -29, -9, -34, -15,
-        -31, -3, -31, 7, -23, 11,
-        -16, 14, -11, 6, -15, -2,
-    }, skin, 1.5)
-    G.polyline({ -27, -4, -23, 6, -18, 4 }, 1, H(0x64AA34))
-    G.oellipse(12, 1, 8, 8, G.WHITE, 1.1)
-    G.ellipse(16, 2, 2.3, 4, I)
-    G.poly({ 2, -10, 23, -11, 21, -2, 3, 1 }, skin)
-    G.line(4, 0, 21, -3, 2, I)
-    G.circle(29, 5, 0.9, I)
-    if hurt then G.line(9, 15, 23, 14, 1.3, I)
+    G.save(); G.translate(x,y)
+    local skin,hair = H(0xA2E84A),H(0x487A53)
+    -- Long pointed ears frame a wide, short face and a swept fringe.
+    G.contour({ 20,-3, 24,-13,30,-17,34,-20,
+        31,-11,29,-4,31,3, 31,8,25,11,21,8,
+        19,5,18,0,20,-3 },skin,1.4)
+    G.contour({ -23,-15, -12,-23,12,-23,23,-14,
+        27,-5,27,9,21,15, 12,22,-8,23,-19,19,
+        -25,14,-27,-5,-23,-15 },skin,1.6)
+    G.contour({ -22,1, -27,-9,-33,-14,-38,-15,
+        -30,-4,-34,6,-28,10, -24,13,-21,9,-20,6,
+        -19,4,-21,3,-22,1 },skin,1.4)
+    G.polyline({ -32,-6,-27,-1,-27,6 },1,H(0x64AA34))
+    G.poly({ -24,-1,-24,-14,-32,-9,-27,-20,-37,-15,
+        -27,-28,-14,-28,4,-27,18,-29,20,-34,23,-27,28,-26,
+        22,-22,25,-13,23,-3,17,-17,5,-19,-6,-10,-5,-19,-18,-10,-16,-19 },hair,1.3)
+    G.contour({ -18,-5, -11,-6,-4,-4,2,-2,
+        3,12,-14,13,-17,5, -18,2,-18,-1,-18,-5 },G.WHITE,1)
+    G.contour({ 8,-2, 13,-5,19,-7,24,-7,
+        26,5,19,11,13,9, 9,7,8,2,8,-2 },G.WHITE,1)
+    G.ellipse(-4,3,2.3,4,I); G.ellipse(19,2,2.1,3.9,I)
+    G.poly({ -19,-8,2,-4,2,0,-18,-1 },hair)
+    G.poly({ 8,-4,24,-11,25,-6,10,2 },hair)
+    G.polyline({ 3,6,5,7,7,6 },1,I)
+    if hurt then G.line(-9,16,16,16,1.3,I)
     else
-        G.contour({ 0, 12, 10, 17, 20, 14, 26, 10,
-            25, 23, 7, 25, 0, 12,
-        }, G.WHITE, 1.1)
-        G.poly({ 18, 14, 23, 12, 21, 19 }, G.WHITE, 0.6)
+        G.contour({ -14,13, -4,18,12,17,22,10,
+            15,20,-3,23,-14,13 },G.WHITE,1.1)
+        G.poly({ 13,15,17,13,16,18 },skin,.6)
     end
     G.restore()
 end
 
 function F.raven(x: number, y: number, hurt: boolean)
-    G.save()
-    G.translate(x, y)
-    local cloak, skin = H(0x4838A0), H(0xD0C8C8)
-    G.contour({ -29, 10,
-        -29, -9, -13, -30, 3, -30,
-        18, -32, 23, -23, 28, -15,
-        21, -6, 23, 10, 28, 20,
-        13, 29, -10, 25, -29, 10,
-    }, cloak, 1.8)
-    G.contour({ 4, -14,
-        13, -20, 20, -18, 25, -14,
-        21, -6, 24, -1, 30, 5,
-        31, 8, 26, 9, 24, 9,
-        26, 18, 19, 23, 11, 23,
-        -2, 20, -5, 0, 4, -14,
-    }, I, 1)
-    G.contour({ 6, 11,
-        15, 15, 21, 8, 24, 7,
-        28, 9, 25, 14, 24, 16,
-        18, 26, 9, 23, 6, 11,
-    }, skin)
-    if hurt then G.line(5, 4, 23, 6, 2, G.WHITE)
+    G.save(); G.translate(x,y)
+    local cloak = H(0x4838A0)
+    -- The hood hides the forehead; black shadow surrounds the eyes.
+    G.contour({ -30,4, -30,-16,-21,-29,-7,-30,
+        6,-34,22,-30,26,-20, 29,-9,26,8,31,17,
+        18,28,-5,31,-21,19, -27,15,-31,10,-34,5,
+        -32,5,-31,5,-30,4 },cloak,1.7)
+    G.contour({ -25,5, -21,-6,-13,-16,-5,-20,
+        2,-14,7,-6,10,-1, 16,-5,20,-13,22,-18,
+        25,-5,23,9,26,16, 17,25,-1,26,-15,19,
+        -21,15,-24,10,-25,5 },I,1)
+    G.contour({ -14,16, -7,11,-2,9,3,10,
+        9,12,13,17,15,22, 4,27,-8,25,-14,16 },H(0xD0C8C8))
+    if hurt then G.line(-17,2,-4,7,1.7,G.WHITE); G.line(9,8,21,3,1.7,G.WHITE)
     else
-        G.contour({ 1, -1, 9, 3, 17, 4, 24, 1,
-            23, 15, 7, 16, 1, -1,
-        }, G.WHITE)
-        G.ellipse(18, 6, 2.6, 3.7, H(0x9B6BD6))
-        G.ellipse(19, 6, 1.3, 2.7, I)
+        G.contour({ -19,-1, -13,3,-5,5,1,6,
+            -2,16,-14,16,-19,-1 },G.WHITE)
+        G.contour({ 8,7, 13,7,19,3,23,1,
+            24,13,11,17,8,7 },G.WHITE)
+        G.ellipse(-5,7,2.5,3.5,H(0x9B6BD6)); G.ellipse(-4.3,6.7,1.2,2.6,I)
+        G.ellipse(18,8,2.1,3.2,H(0x9B6BD6)); G.ellipse(18.6,7.7,1.1,2.4,I)
     end
-    G.line(17, 18, 24, 17, 1.2, I)
-    G.contour({ -29, 10, -23, -1, -12, -14, 4, -23,
-        -1, -8, -4, 10, 5, 24,
-        -10, 23, -21, 18, -29, 10,
-    }, cloak, 1.1)
+    G.polyline({ 0,18,5,17,9,18 },1.1,I)
     G.restore()
 end
 
-function F.starfireHair(x: number, y: number, t: number, walk: number)
-    G.save()
-    G.translate(x, y)
-    local trail = walk * 13 + math.sin(t * 2.6) * 2
-    G.contour({ -22, -18,
-        -35, -8, -29, 20, -41 - trail, 45,
-        -49 - trail, 59, -40 - trail, 77, -31 - trail, 80,
-        -34 - trail, 69, -27, 65, -24, 62,
-        -20, 80, -7, 91, 4, 84,
-        -5, 76, -4, 59, -3, 44,
-        3, 22, 11, -6, 9, -20,
-        1, -30, -14, -28, -22, -18,
-    }, H(0xE00078), 1.8)
-    G.polyline({ -23, 8, -26 - trail, 42, -29 - trail, 61 }, 1.2, H(0xB00060))
+function F.starfireHair(x: number,y: number,t: number,walk: number)
+    G.save(); G.translate(x,y)
+    local trail = walk*8 + math.sin(t*2.6)*1.5
+    G.contour({ -23,-16, -29,-3,-27,26,-29-trail,47,
+        -30-trail,61,-27-trail,73,-22-trail,78,
+        -22,70,-18,65,-15,61, -10,75,6,84,20,78,
+        14,80,12,75,12,71, 25,69,30,57,27,43,
+        24,24,26,0,22,-17, 13,-28,-12,-27,-23,-16 },H(0xE00078),1.6)
+    G.polyline({ -22,8,-23-trail,36,-21-trail,56 },1.1,H(0xB00060))
     G.restore()
 end
 
-function F.starfire(x: number, y: number, hurt: boolean)
-    G.save()
-    G.translate(x, y)
-    local skin, hair = H(0xFFBD79), H(0xE00078)
-    G.contour({ -22, -15,
-        -8, -27, 17, -23, 22, -13,
-        25, -6, 22, 0, 29, 4,
-        32, 7, 27, 9, 24, 9,
-        24, 19, 13, 24, 4, 25,
-        -13, 25, -29, 6, -22, -15,
-    }, skin, 1.7)
-    G.oellipse(12, 1, 8.5, 10.5, H(0xC7FF77), 1)
-    G.ellipse(15, 1, 4.8, 8, H(0x54C925))
-    G.ellipse(17, 0, 2.6, 6, H(0x174C20))
-    G.ellipse(13, -3, 1.7, 2.4, G.WHITE)
-    G.polyline({ 4, -5, 8, -9, 17, -9, 22, -6, 25, -10 }, 1.8, I)
-    G.line(22, -3, 26, -5, 1.5, I)
-    G.ellipse(10, -14, 3.2, 1.5, hair)
-    G.contour({ -22, 9,
-        -29, -3, -29, -24, -15, -28,
-        -4, -34, 4, -25, 10, -27,
-        20, -30, 26, -24, 25, -16,
-        19, -22, 10, -19, 8, -15,
-        3, -13, 0, -24, -9, -17,
-        -17, -13, -14, 2, -22, 9,
-    }, hair, 1.5)
-    G.oellipse(-15, 7, 3.4, 5, skin, 1.2)
-    if hurt then G.oellipse(19, 17, 2.6, 2, H(0x5E1426), 0.8)
-    else G.polyline({ 10, 17, 17, 18, 23, 15 }, 1.2, I) end
+function F.starfire(x: number,y: number,hurt: boolean)
+    G.save(); G.translate(x,y)
+    local skin,hair = H(0xFFBD79),H(0xE00078)
+    G.contour({ -23,-14, -15,-26,12,-26,23,-15,
+        30,0,26,14,16,20, 12,23,7,25,3,26,
+        -11,24,-25,14,-25,1, -26,-5,-26,-10,-23,-14 },skin,1.6)
+    local function eye(ex: number,ey: number,rx: number,lash: number)
+        G.oellipse(ex,ey,rx,10,H(0xC7FF77),.9)
+        G.ellipse(ex+1.8,ey-1,rx*.38,6.1,H(0x185B25))
+        G.ellipse(ex+.4,ey-4.2,1.7,2.3,G.WHITE)
+        G.polyline({ ex-rx,ey-3,ex-rx*.6,ey-8,ex,ey-10,ex+rx*.6,ey-8,ex+rx,ey-3 },2,I)
+        G.line(ex+lash*rx*.65,ey-7,ex+lash*(rx+3),ey-12,2,I)
+    end
+    eye(-9,1,8.8,-1); eye(15,0,7.6,1)
+    G.ellipse(-8,-13,3.4,1.7,hair); G.ellipse(15,-14,2.8,1.5,hair)
+    G.polyline({ 3,9,5,7,7,9 },1,I)
+    -- Two rounded bangs make the heart-shaped hairline.
+    G.contour({ -24,3, -28,-9,-27,-25,-15,-28,
+        -5,-31,1,-27,5,-23, 12,-30,23,-28,27,-22,
+        29,-15,24,-9,21,-10, 24,-16,20,-22,14,-22,
+        10,-22,7,-18,5,-17, -1,-22,-7,-25,-14,-22,
+        -22,-18,-18,-10,-24,3 },hair,1.4)
+    G.oellipse(-24,5,3.5,5.2,skin,1.2)
+    if hurt then G.oellipse(7,18,2.6,2,H(0x5E1426),.8)
+    else G.contour({ -2,18, 3,20,11,20,16,16,
+        11,21,4,22,-2,18 },I) end
     G.restore()
 end
-
 return F

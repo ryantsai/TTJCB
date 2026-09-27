@@ -4,6 +4,7 @@ local Art = require('art')
 local Motion = require('motion')
 local Attacks = require('attacks')
 local Powers = require('powers')
+local Arms = require('armature')
 
 local function step(app: any, frames: number)
     for _ = 1, frames do
@@ -71,6 +72,7 @@ local function pad(app: any, button: string, down: boolean)
         start = false, forward = false, back = false,
     }
     if button == 'rt' then event.rightTrigger = if down then .9 else 0
+    elseif button == 'a' then event.south = down
     elseif button == 'y' then event.north = down
     elseif button == 'b' then event.east = down
     elseif button == 'rb' then event.rightShoulder = down end
@@ -99,6 +101,25 @@ return function(): Tests
                     previous = extension
                 end
                 expect(Motion.strike(duration, duration, first, last)).is(0)
+            end
+        end)
+        test.case('side-view elbows bend below forward fists and preserve both bone lengths', function(expect)
+            for _, kind in { 'robin', 'cyborg', 'starfire', 'raven', 'beast' } do
+                local upper, lower = Arms.lengths(kind)
+                for _, target in { { 20, 13 }, { 30, 0 }, { 100, 0 }, { 0, 0 }, { -17, 46 } } do
+                    local ex, ey, hx, hy = Arms.solve(kind, 0, 0, target[1], target[2])
+                    expect(math.abs(math.sqrt(ex * ex + ey * ey) - upper)).lessThan(.001)
+                    expect(math.abs(math.sqrt((hx - ex)^2 + (hy - ey)^2) - lower)).lessThan(.001)
+                    if target[1] > 0 and target[2] >= 0 then
+                        expect(ey).greaterThan(0)
+                        -- Elbow stays on the same lower/back side of the shoulder-to-hand line.
+                        expect(hx * ey - hy * ex).greaterThan(0)
+                        for _, facing in { -1, 1 } do
+                            expect(hx * facing * facing).greaterThan(0)
+                            expect((hx * facing * ey - hy * ex * facing) * facing).greaterThan(0)
+                        end
+                    end
+                end
             end
         end)
         test.case('keyboard moves and faces in all four directions', function(expect)
@@ -148,6 +169,120 @@ return function(): Tests
                 expect(f.pose.air).is(false)
                 expect(f.state).is('idle')
                 expect(f.y).is(590)
+            end
+        end)
+        test.case('tap and held jumps have distinct heights and readable takeoff, fall and landing', function(expect)
+            for hero=1,5 do
+                local peaks: { number }={}
+                for _,held in {false,true} do
+                    local app=game(hero)
+                    local f=app.g.slots[1].fighter
+                    key(app,75,true)
+                    step(app,2)
+                    expect(f.state).is('takeoff')
+                    expect(f.z).is(0)
+                    expect(f.pose.launch).greaterThan(0)
+                    if not held then key(app,75,false) end
+                    local peak=0
+                    local rose,fell,landed=false,false,false
+                    for _=1,120 do
+                        step(app,1)
+                        peak=math.max(peak,f.z)
+                        rose=rose or (f.pose.air and f.pose.rise>.2)
+                        fell=fell or (f.pose.air and f.pose.rise<-.2)
+                        landed=landed or f.pose.land>0
+                    end
+                    expect(rose and fell and landed).is(true)
+                    expect(f.z).is(0)
+                    expect(f.pose.land).is(0)
+                    expect(f.y).is(590)
+                    expect(f.state).is('idle')
+                    table.insert(peaks,peak)
+                    key(app,75,false)
+                end
+                expect(peaks[2]-peaks[1]).greaterThan(25)
+            end
+        end)
+        test.case('a jump pressed just before landing is buffered without automatic repeats', function(expect)
+            local app=game(1)
+            local f=app.g.slots[1].fighter
+            press(app,75)
+            for _=1,100 do
+                step(app,1)
+                if f.vz<0 and f.z<20 and f.z>0 then break end
+            end
+            expect(f.pose.air).is(true)
+            press(app,75)
+            local relaunched=false
+            for _=1,20 do
+                step(app,1)
+                relaunched=relaunched or f.vz>200
+            end
+            expect(relaunched).is(true)
+            step(app,120)
+            expect(f.state).is('idle')
+            expect(f.z).is(0)
+        end)
+        test.case('gamepad A supports the same tap and hold jump control', function(expect)
+            local peaks: { number }={}
+            for _,held in {false,true} do
+                local app=game(1)
+                app.g.slots[1].dev='pad0'
+                local f=app.g.slots[1].fighter
+                pad(app,'a',true)
+                step(app,2)
+                if not held then pad(app,'a',false) end
+                local peak=0
+                for _=1,100 do
+                    step(app,1)
+                    peak=math.max(peak,f.z)
+                end
+                expect(f.state).is('idle')
+                table.insert(peaks,peak)
+            end
+            expect(peaks[2]-peaks[1]).greaterThan(25)
+        end)
+        test.case('air attacks have a forward hit window and recover into flight', function(expect)
+            for _,direction in {-1,1} do
+                local app=game(1)
+                local f=app.g.slots[1].fighter
+                face(app,direction)
+                key(app,75,true)
+                step(app,10)
+                local front=target(app,direction*60)
+                local back=target(app,-direction*60)
+                front.z=f.z;front.vz=f.vz
+                back.z=f.z;back.vz=f.vz
+                press(app,74)
+                expect(front.hp).is(1000)
+                expect(f.pose.active).is(false)
+                step(app,8)
+                expect(front.hp).lessThan(1000)
+                expect(back.hp).is(1000)
+                local health=front.hp
+                step(app,18)
+                expect(front.hp).is(health)
+                expect(f.pose.active).is(false)
+                step(app,80)
+                expect(f.state).is('idle')
+                expect(f.z).is(0)
+                key(app,75,false)
+            end
+        end)
+        test.case('Robin keeps a rigid two-handed staff throughout all three swings', function(expect)
+            local upper,lower=Arms.lengths('robin')
+            for combo=1,3 do
+                local attack=Attacks.get('robin',combo)
+                for frame=0,60 do
+                    local t=frame/60*attack.duration
+                    local e=Motion.strike(t,attack.duration,attack.first,attack.last)
+                    local w=Motion.windup(t,attack.first,e)
+                    local u=math.clamp((t-attack.first)/(attack.last-attack.first),0,1)
+                    local fx,fy,bx,by=Motion.staff(combo,e,w,u,-62)
+                    expect(math.abs(math.sqrt((fx-bx)^2+(fy-by)^2)-14)).lessThan(.001)
+                    expect(math.sqrt((fx+10)^2+(fy+58)^2)).lessThanOrEqual(upper+lower)
+                    expect(math.sqrt((bx-11)^2+(by+60)^2)).lessThanOrEqual(upper+lower)
+                end
             end
         end)
         test.case('gamepad diagonal speed matches keyboard diagonal speed', function(expect)
