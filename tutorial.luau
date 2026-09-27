@@ -222,7 +222,7 @@ local function keyRow(locale:L.Locale,keys:{Key},y:number,player:number,input:In
         local dy=if down then 4 else 0
         G.rrect(x,y+5,widths[i],38,6,INK)
         G.rrect(x,y+dy,widths[i],36,6,if down then YELLOW else PAPER,2)
-        G.label(key.label,x+widths[i]/2,y+12+dy,12,INK,.5)
+        G.label(L.text(locale,key.label),x+widths[i]/2,y+12+dy,12,INK,.5)
         x+=widths[i]+8
     end
 end

@@ -158,13 +158,14 @@ return function():Tests
                 expect(hp-b.hp).is(math.floor(7*h.power*(if boosted then 1.5 else 1)+.5))
             end
         end)
-        test.case('boss dialogue has independent voices and both translations fit the speech bubble',function(expect)
+        test.case('boss dialogue has independent voices and all translations fit the speech bubble',function(expect)
             local intros={}
             for kind,bank in R.bossLines do
                 for _,lines in bank do
                     expect(#lines).greaterThanOrEqual(3)
                     for _,pair in lines do
                         expect(L.text('zh-TW',pair[1])).is(pair[2])
+                        expect(L.text('ja',pair[1])).is(pair[3])
                         for _,text in pair do
                             local wrapped=S.wrap(text);expect(#wrapped).lessThanOrEqual(3)
                             for _,line in wrapped do expect(G.textWidth(line,S.size)).lessThanOrEqual(S.maxWidth) end

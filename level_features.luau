@@ -42,6 +42,6 @@ function F.draw(kind:string,x:number,y:number,t:number,locale:L.Locale)
     local d=F.get(kind);if not d then return end
     F.icon(kind,x,y-30-math.sin(t*4)*4,t)
     G.text(L.text(locale,d.name),x,y+7,14,G.hex(d.color),.5)
-    G.text(L.text(locale,d.hint),x,y+27,if locale=='zh-TW' then 14 else 10,G.WHITE,.5)
+    G.text(L.text(locale,d.hint),x,y+27,if locale~='en' then 14 else 10,G.WHITE,.5)
 end
 return F

@@ -42,6 +42,7 @@ return function(context:Context):Layout<Game.Main>
         -- Resolve the signature pose through the real game update before freezing.
         step(a,1);g.shake=0
     end
+    a.init=function(self:any,ctx:any):boolean return true end
     a.advance=function(self:any,dt:number):boolean return true end
     return a
 end
@@ -52,7 +53,7 @@ def main():
     parser.add_argument('--stage',type=int,choices=range(1,9),default=8)
     parser.add_argument('--wave',type=int,choices=range(1,5),default=4)
     parser.add_argument('--hazard',type=float,default=5)
-    parser.add_argument('--locale',choices=['en','zh-TW'],default='en')
+    parser.add_argument('--locale',choices=['en','zh-TW','ja'],default='en')
     parser.add_argument('--map',action='store_true')
     parser.add_argument('--signature',action='store_true')
     parser.add_argument('--equipment',action='store_true')

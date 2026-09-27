@@ -8,6 +8,8 @@
 -- transforms, which keeps the per-frame path count low.
 local font = require('font')
 local tcGlyphs = require('tc_glyphs')
+local jpGlyphs = require('jp_glyphs')
+local japanese = false
 
 local G = {}
 
@@ -33,6 +35,11 @@ local unitCircle = Path.new()
 local unitSquare = Path.new()
 local glyphPaths: { [string]: Path } = {}
 local tcPaths: { [number]: Path } = {}
+local jpPaths: { [number]: Path } = {}
+
+function G.setLocale(locale: string)
+    japanese = locale == 'ja'
+end
 
 G.INK = Color.rgb(24, 14, 36)
 G.WHITE = Color.rgb(255, 255, 255)
@@ -442,8 +449,10 @@ end
 -- Decode each outline once, on first use. The shipped WOFF2 subset is converted
 -- to these paths at authoring time because Renderer has no font/text API.
 local function tcPath(code: number): Path?
-    if tcPaths[code] then return tcPaths[code] end
-    local data = tcGlyphs[code]
+    local useJP = if japanese then jpGlyphs[code] ~= nil else tcGlyphs[code] == nil
+    local paths = if useJP then jpPaths else tcPaths
+    if paths[code] then return paths[code] end
+    local data = if useJP then jpGlyphs[code] else tcGlyphs[code]
     if data == nil then return nil end
     local tokens = string.split(data, ' ')
     local path = Path.new()
@@ -470,7 +479,7 @@ local function tcPath(code: number): Path?
             end
         end
     end
-    tcPaths[code] = path
+    paths[code] = path
     return path
 end
 
@@ -492,7 +501,8 @@ local textCursor = 1
 local TEXT_CACHE_LIMIT = 256
 
 local function textRun(s: string): TextRun
-    local cached = textRuns[s]
+    local key = (if japanese then 'ja:' else 'tc:') .. s
+    local cached = textRuns[key]
     if cached then return cached end
     local run: TextRun = { ascii=nil, tc=nil, width=G.textWidth(s,6), chinese=#s~=utf8.len(s) }
     local cursor = 0
@@ -512,13 +522,13 @@ local function textRun(s: string): TextRun
         cursor += if isTC then 6.3 else font.ADVANCE
     end
     if #textKeys < TEXT_CACHE_LIMIT then
-        table.insert(textKeys,s)
+        table.insert(textKeys,key)
     else
         textRuns[textKeys[textCursor]]=nil
-        textKeys[textCursor]=s
+        textKeys[textCursor]=key
         textCursor=textCursor%TEXT_CACHE_LIMIT+1
     end
-    textRuns[s]=run
+    textRuns[key]=run
     return run
 end
 

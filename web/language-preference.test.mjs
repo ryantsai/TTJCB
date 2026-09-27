@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { hostStrings } from './host-strings.mjs';
 import { browserLanguage, connectLanguage, initialLanguage, LANGUAGE_KEY } from './language-preference.mjs';
 
 function property(value) {
@@ -27,14 +28,14 @@ function choose(v, language) {
   v.p.languageRevision.flush();
 }
 
-test('browser language detects Traditional Chinese and defaults other languages to English', () => {
+test('browser language detects supported languages in preference order', () => {
   for (const tag of ['zh-TW', 'zh-Hant', 'zh-Hant-HK', 'zh-HK', 'zh-MO']) {
     assert.equal(browserLanguage({ languages: [tag] }), 'zh-TW');
   }
-  for (const tag of ['zh-CN', 'zh-Hans', 'zh', 'ja-JP', 'fr-FR', 'en-US']) {
+  for (const tag of ['zh-CN', 'zh-Hans', 'zh', 'fr-FR', 'en-US']) {
     assert.equal(browserLanguage({ language: tag }), 'en');
   }
-  assert.equal(browserLanguage({ languages: ['ja-JP', 'zh-TW', 'en-US'] }), 'zh-TW');
+  assert.equal(browserLanguage({ languages: ['ja-JP', 'zh-TW', 'en-US'] }), 'ja');
   assert.equal(browserLanguage({ languages: ['en-US', 'zh-TW'] }), 'en');
 });
 
@@ -104,4 +105,41 @@ test('host text follows initial preference, game selection and other tabs', () =
   assert.deepEqual(seen, ['zh-TW', 'en', 'zh-TW']);
   assert.equal(initialLanguage({ navigator: { language: 'zh-TW' },
     get localStorage() { throw new Error('blocked'); } }), 'zh-TW');
+});
+
+
+test('Japanese detection, explicit choice, reload, and cross-tab synchronization', () => {
+  for (const tag of ['ja', 'ja-JP', 'JA-jp', 'ja-Jpan-JP']) {
+    assert.equal(browserLanguage({ language: tag }), 'ja');
+    assert.equal(initialLanguage(host([tag])), 'ja');
+  }
+  const h = host(['ja-JP']); const v = vm(); const seen = [];
+  connectLanguage(v, h, value => seen.push(value));
+  assert.equal(v.p.browserLanguage.value, 'ja');
+  assert.equal(h.data.has(LANGUAGE_KEY), false);
+  choose(v, 'en'); choose(v, 'zh-TW'); choose(v, 'ja');
+  assert.equal(h.data.get(LANGUAGE_KEY), 'ja');
+  h.navigator.languages = ['en-US'];
+  assert.equal(initialLanguage(h), 'ja');
+  const reopened = vm(); connectLanguage(reopened, h);
+  assert.equal(reopened.p.browserLanguage.value, 'ja');
+  h.localStorage.setItem(LANGUAGE_KEY, 'zh-TW');
+  h.dispatch('storage', { key: LANGUAGE_KEY, storageArea: h.localStorage });
+  assert.equal(reopened.p.browserLanguage.value, 'zh-TW');
+  h.localStorage.setItem(LANGUAGE_KEY, 'ja');
+  h.dispatch('storage', { key: LANGUAGE_KEY, storageArea: h.localStorage });
+  assert.equal(reopened.p.browserLanguage.value, 'ja');
+  assert.equal(reopened.p.languageRevision.value, 0);
+  assert.deepEqual(seen, ['ja', 'en', 'zh-TW', 'ja']);
+});
+
+
+test('every host locale translates every visible and accessible browser message', () => {
+  for (const locale of ['zh-TW', 'ja']) {
+    assert.deepEqual(Object.keys(hostStrings[locale]).sort(), Object.keys(hostStrings.en).sort());
+    for (const [key, english] of Object.entries(hostStrings.en)) {
+      assert.ok(hostStrings[locale][key].length > 0);
+      assert.notEqual(hostStrings[locale][key], english);
+    }
+  }
 });

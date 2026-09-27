@@ -1,8 +1,13 @@
 -- Taiwan TV terminology and project-authored translations; sources in docs/localization-zh-TW.md.
 local L = {}
-export type Locale = 'en' | 'zh-TW'
+export type Locale = 'en' | 'zh-TW' | 'ja'
 L.languageLabel = '繁中（台灣）'
+L.locales = {'en','zh-TW','ja'} :: {Locale}
+L.labels = {'ENGLISH',L.languageLabel,'日本語'}
+L.japanese = require('localization_ja')
 L.catalog = {
+    ['UP']='上', ['LEFT']='左', ['DOWN']='下', ['RIGHT']='右',
+    ['R SHIFT']='右 SHIFT', ['R CTRL']='右 CTRL',
     ['SHIELD BLOCK'] = '護盾格擋',
     ['10S: HEAL AND CLEAR PROJECTILES'] = '持續10秒：恢復生命並消除飛彈',
     ['12S: BLOCK THREE HITS'] = '持續12秒：抵擋三次攻擊',
@@ -161,17 +166,21 @@ L.catalog = {
     ['KEEP PROGRESS'] = '保留進度', ['RESET'] = '重設',
 } :: { [string]: string }
 
--- Banter is authored as paired translations so variants cannot drift apart.
+-- Banter translations live together: English, Traditional Chinese, Japanese.
 for _, banks in {require('remarks_catalog'),require('boss_remarks')} do
 for _, character in banks do
     for _, lines in character do
-        for _, line in lines do L.catalog[line[1]] = line[2] end
+        for _, line in lines do
+            L.catalog[line[1]] = line[2]
+            L.japanese[line[1]] = line[3]
+        end
     end
 end
 
 end
 
 function L.text(locale: Locale, source: string): string
+    if locale == 'ja' then return L.japanese[source] or source end
     return if locale == 'zh-TW' then L.catalog[source] or source else source
 end
 
@@ -185,8 +194,12 @@ function L.format(locale: Locale, source: string, values: { [string]: string | n
     return result
 end
 
+function L.valid(locale: string): boolean
+    return locale=='en' or locale=='zh-TW' or locale=='ja'
+end
+
 function L.toggle(locale: Locale): Locale
-    return if locale == 'en' then 'zh-TW' else 'en'
+    return if locale == 'en' then 'zh-TW' elseif locale == 'zh-TW' then 'ja' else 'en'
 end
 
 return L

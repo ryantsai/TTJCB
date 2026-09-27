@@ -57,6 +57,7 @@ return function(): Tests
                         expect(english[pair[1]] == nil).is(true)
                         expect(chinese[pair[2]] == nil).is(true)
                         expect(L.text('zh-TW', pair[1])).is(pair[2])
+                        expect(L.text('ja', pair[1])).is(pair[3])
                         english[pair[1]], chinese[pair[2]] = true, true
                     end
                     local voice=R.new(743)
@@ -92,7 +93,7 @@ return function(): Tests
             expect(voice.time).is(0)
             expect(R.offer(voice,'raven','heal')).is(true)
         end)
-        test.case('all speech fits three readable lines in English and Traditional Chinese',function(expect)
+        test.case('all speech fits three readable lines in English, Traditional Chinese and Japanese',function(expect)
             for _,bank in R.lines do
                 for _,variants in bank do
                     for _,pair in variants do

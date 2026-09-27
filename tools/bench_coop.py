@@ -82,7 +82,7 @@ end
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--name', default='coop-perf')
-    parser.add_argument('--locale', choices=['en', 'zh-TW'], default='en')
+    parser.add_argument('--locale', choices=['en', 'zh-TW', 'ja'], default='en')
     parser.add_argument('--frames', type=int, default=1200)
     parser.add_argument('--runs', type=int, default=3)
     parser.add_argument('--prepare-only', action='store_true')

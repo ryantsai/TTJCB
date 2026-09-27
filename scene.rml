@@ -52,9 +52,11 @@
     <!-- Dependencies register before their consumers. -->
     <ScriptAsset file="font.luau" name="font" isModule="true" id="0:101"/>
     <ScriptAsset file="tc_glyphs.luau" name="tc_glyphs" isModule="true" id="0:102"/>
+    <ScriptAsset file="jp_glyphs.luau" name="jp_glyphs" isModule="true" id="0:128"/>
     <ScriptAsset file="gfx.luau" name="gfx" isModule="true" id="0:103"/>
     <ScriptAsset file="remarks_catalog.luau" name="remarks_catalog" isModule="true" id="0:104"/>
     <ScriptAsset file="boss_remarks.luau" name="boss_remarks" isModule="true" id="0:125"/>
+    <ScriptAsset file="localization_ja.luau" name="localization_ja" isModule="true" id="0:129"/>
     <ScriptAsset file="localization.luau" name="localization" isModule="true" id="0:105"/>
     <ScriptAsset file="armature.luau" name="armature" isModule="true" id="0:106"/>
     <ScriptAsset file="motion.luau" name="motion" isModule="true" id="0:107"/>

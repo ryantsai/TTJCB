@@ -13,10 +13,14 @@ LITERAL = r'''(?:'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")'''
 def check():
     catalog = (ROOT / 'localization.luau').read_text()
     keys = {ast.literal_eval(m[1]) for m in re.finditer(r'\[(' + LITERAL + r')\]\s*=', catalog)}
+    japanese = (ROOT / 'localization_ja.luau').read_text()
+    japanese_keys = {ast.literal_eval(m[1]) for m in re.finditer(r'\[(' + LITERAL + r')\]\s*=', japanese)}
+    if keys != japanese_keys:
+        raise SystemExit(f'Japanese UI parity: missing {keys-japanese_keys}, extra {japanese_keys-keys}')
     legends = {'ENGLISH', 'H / Y', 'START / ENTER / ESC'}
     problems = []
     for path in ROOT.glob('*.luau'):
-        if path.name.endswith('_test.luau') or path.name in {'localization.luau', 'tc_glyphs.luau'}:
+        if path.name.endswith('_test.luau') or path.name in {'localization.luau', 'localization_ja.luau', 'tc_glyphs.luau', 'jp_glyphs.luau'}:
             continue
         source = path.read_text()
         for m in re.finditer(r'G\.text\(\s*(' + LITERAL + r')', source):
@@ -29,7 +33,7 @@ def check():
                 problems.append(f'{path.name}:{source[:m.start()].count(chr(10))+1}: missing translation {value!r}')
     if problems:
         raise SystemExit('\n'.join(problems))
-    print('Native UI literal audit passed; no hard-coded English draw strings.')
+    print(f'Native UI literal audit passed; all {len(keys)} UI keys have Japanese counterparts.')
 
 if __name__ == '__main__':
     check()

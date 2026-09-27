@@ -6,6 +6,13 @@ export const hostStrings = {
     enter: 'Enter fullscreen', exit: 'Exit fullscreen', fullscreen: 'Fullscreen',
     unavailable: 'Fullscreen is unavailable in this browser.',
   },
+  ja: {
+    title: 'ティーン・タイタンズ：ジャンプシティ大乱闘', loading: '読み込み中…',
+    loadError: 'ゲームを読み込めませんでした。もう一度お試しください。',
+    progressError: '進行状況を読み込めませんでした。再読み込みしてお試しください。',
+    enter: '全画面表示にする', exit: '全画面表示を終了', fullscreen: '全画面表示',
+    unavailable: 'このブラウザーでは全画面表示を利用できません。',
+  },
   'zh-TW': {
     title: '少年悍將：雀躍城大亂鬥', loading: '載入中……',
     loadError: '遊戲無法載入，請再試一次。',

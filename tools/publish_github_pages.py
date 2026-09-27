@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
 DIST = WEB / "dist"
 SITE = ROOT / "site"
-ASSETS = ("index.html", "game.js", "game.riv", "rive.wasm", "noto-sans-tc.woff2")
+ASSETS = ("index.html", "game.js", "game.riv", "rive.wasm", "noto-sans-tc.woff2", "noto-sans-jp.woff2")
 
 
 def main() -> None:

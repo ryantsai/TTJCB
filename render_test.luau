@@ -24,7 +24,7 @@ end
 return function():Tests
     return function(test:Tester)
         test.case('menu and pause shading leaves the scene visible without renderer opacity modulation',function(expect)
-            for _,locale in {'en','zh-TW'} do
+            for _,locale in {'en','zh-TW','ja'} do
                 for _,screen in {'title','select','paused','continue','win','over'} do
                     local app:any=(Game.create :: any)(nil)
                     local g=app.g
@@ -50,6 +50,20 @@ return function():Tests
             expect(#r.paths).is(2)
             expect(r.paths[1]==outline).is(true)
             expect(#outline).is(commands)
+        end)
+        test.case('Japanese and Taiwan glyph runs keep separate regional caches',function(expect)
+            local r=recorder()
+            G.setLocale('zh-TW');G.begin(r);G.text('強',0,0,20,G.WHITE)
+            local tc=r.paths[1];table.clear(r.paths)
+            G.setLocale('ja');G.begin(r);G.text('強',0,0,20,G.WHITE)
+            local jp=r.paths[1];expect(jp==tc).is(false);expect(#jp).greaterThan(0)
+            table.clear(r.paths)
+            G.setLocale('zh-TW');G.begin(r);G.text('強',0,0,20,G.WHITE)
+            expect(r.paths[1]==tc).is(true)
+            table.clear(r.paths)
+            G.setLocale('ja');G.begin(r);G.text('強',0,0,20,G.WHITE)
+            expect(r.paths[1]==jp).is(true)
+            G.setLocale('en')
         end)
         test.case('mixed Taiwan text batches glyphs and cache eviction never mutates submitted paths',function(expect)
             local r=recorder()

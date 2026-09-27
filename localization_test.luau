@@ -53,12 +53,56 @@ return function(): Tests
             expect(app.g.locale).is('zh-TW')
             expect(props.browserLanguage.value).is('zh-TW')
             expect(props.languageRevision.value).is(1)
-            local chinese=pointer(1,1160,46)
+            local chinese=pointer(1,1054,46)
             app.pointerDown(app,chinese);app.pointerUp(app,chinese)
             expect(props.languageRevision.value).is(2)
             pad(app,true);pad(app,true)
-            expect(app.g.locale).is('en')
+            expect(app.g.locale).is('ja')
             expect(props.languageRevision.value).is(3)
+        end)
+        test.case('Japanese hydrates, persists through play, and is selectable with a letterboxed pointer', function(expect)
+            local app:any=(Game.create :: any)(nil)
+            local props:any={browserLanguage={value='ja'},languageRevision={value=0}}
+            local vm:any={getString=function(self:any,k:string) return props[k] end,
+                getNumber=function(self:any,k:string) return props[k] end,
+                getBoolean=function(self:any,k:string) return props[k] end}
+            app.init(app,{viewModel=function(self:any) return vm end});step(app,1)
+            expect(app.g.locale).is('ja');expect(props.languageRevision.value).is(0)
+            press(app,258);expect(app.g.locale).is('en')
+            app.resize(app,Vector.xy(1600,1000),1)
+            local jp=pointer(9,1487.5,107.5)
+            app.pointerDown(app,jp);app.pointerUp(app,pointer(8,1487.5,107.5))
+            expect(app.g.locale).is('en')
+            app.pointerUp(app,jp);expect(app.g.locale).is('ja')
+            expect(props.browserLanguage.value).is('ja');expect(props.languageRevision.value).is(2)
+            props.browserLanguage.value='unknown';step(app,1);expect(app.g.locale).is('ja')
+            props.browserLanguage.value='ja';app.g.tutorialSeen=true
+            press(app,257);press(app,257);press(app,257);press(app,257);step(app,80)
+            expect(app.g.mode).is('play');expect(app.g.locale).is('ja')
+            expect(app.g.bannerSub).is('ジャンプシティ / 街の悪党を一掃せよ')
+            pad(app,true);expect(app.g.locale).is('ja')
+        end)
+        test.case('Japanese covers every catalog key with matching placeholders and actual font outlines', function(expect)
+            local jpGlyphs=require('jp_glyphs')
+            local function covered(value:string)
+                for _,code in utf8.codes(value) do
+                    if code>127 then expect(jpGlyphs[code]~=nil).is(true) end
+                end
+            end
+            covered(L.labels[3])
+            for source,_ in L.catalog do
+                local translated=L.japanese[source]
+                expect(translated~=nil and translated~=source and #translated>0).is(true)
+                covered(translated)
+                expect(L.text('ja',source)).is(translated)
+                local a,b={},{}
+                for name in string.gmatch(source,'{([%w_]+)}') do table.insert(a,name) end
+                for name in string.gmatch(translated,'{([%w_]+)}') do table.insert(b,name) end
+                table.sort(a);table.sort(b);expect(table.concat(a,',')).is(table.concat(b,','))
+            end
+            for source,_ in L.japanese do expect(L.catalog[source]~=nil).is(true) end
+            expect(L.format('ja','STARTING IN {seconds}',{seconds=3})).is('あと3秒で開始')
+            expect(L.format('ja','{stage}/8  {name}  -  WAVE {wave}/4',{stage=5,name=L.text('ja','MAD MOD SCHOOL'),wave=4})).is('5/8  マッド・モッドの学校  第4/4波')
         end)
         test.case('Taiwan terminology covers all heroes, enemies, stages and powers', function(expect)
             local names = { ROBIN = '羅賓', CYBORG = '鋼骨', STARFIRE = '俏嬌娃', RAVEN = '酷姬', ['BEAST BOY'] = '人皮獸' } :: { [string]: string }
@@ -128,6 +172,8 @@ return function(): Tests
             expect(app.g.mode).is('title')
             expect(app.g.locale).is('zh-TW')
             press(app, 258)
+            expect(app.g.locale).is('ja')
+            press(app, 258)
             expect(app.g.locale).is('en')
             local other: any = (Game.create :: any)(nil)
             expect(other.g.locale).is('en')
@@ -137,15 +183,15 @@ return function(): Tests
             local app: any = (Game.create :: any)(nil)
             app.g.tutorialSeen = true
             app.resize(app, Vector.xy(1600, 1000), 1)
-            -- Design point 1160,46 at scale 1.25, with a 50px top letterbox.
-            local chinese = pointer(1, 1450, 107.5)
+            -- Design point 1054,46 at scale 1.25, with a 50px top letterbox.
+            local chinese = pointer(1, 1317.5, 107.5)
             app.pointerDown(app, chinese)
-            app.pointerUp(app, pointer(2, 1450, 107.5))
+            app.pointerUp(app, pointer(2, 1317.5, 107.5))
             expect(app.g.locale).is('en')
             app.pointerUp(app, chinese)
             expect(app.g.locale).is('zh-TW')
             expect(app.g.mode).is('title')
-            local english = pointer(1, 1265, 107.5)
+            local english = pointer(1, 1147.5, 107.5)
             app.pointerDown(app, english)
             app.pointerUp(app, pointer(1, 900, 900))
             expect(app.g.locale).is('zh-TW')
@@ -170,6 +216,9 @@ return function(): Tests
             expect(app.g.locale).is('zh-TW')
             expect(app.g.mode).is('title')
             expect(app.g.slots[1].dev).is('')
+            pad(app, false)
+            pad(app, true)
+            expect(app.g.locale).is('ja')
             pad(app, false)
             pad(app, true)
             expect(app.g.locale).is('en')

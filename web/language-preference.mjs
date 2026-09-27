@@ -6,6 +6,7 @@ export function browserLanguage(navigator = {}) {
     if (typeof tag !== 'string') continue;
     const parts = tag.toLowerCase().split('-');
     if (parts[0] === 'en') return 'en';
+    if (parts[0] === 'ja') return 'ja';
     if (parts[0] === 'zh' && !parts.includes('hans') &&
         (parts.includes('hant') || parts.some(part => ['tw', 'hk', 'mo'].includes(part)))) return 'zh-TW';
   }
@@ -15,7 +16,7 @@ export function browserLanguage(navigator = {}) {
 export function initialLanguage(environment = globalThis) {
   try {
     const saved = environment.localStorage.getItem(LANGUAGE_KEY);
-    if (saved === 'en' || saved === 'zh-TW') return saved;
+    if (saved === 'en' || saved === 'zh-TW' || saved === 'ja') return saved;
   } catch {}
   return browserLanguage(environment.navigator);
 }
@@ -32,7 +33,7 @@ export function connectLanguage(viewModel, environment = globalThis, onChange = 
     try {
       storage = environment.localStorage;
       const saved = storage.getItem(LANGUAGE_KEY);
-      return saved === 'en' || saved === 'zh-TW' ? saved : automatic;
+      return saved === 'en' || saved === 'zh-TW' || saved === 'ja' ? saved : automatic;
     } catch { return automatic; }
   };
   language.value = read();
@@ -41,7 +42,7 @@ export function connectLanguage(viewModel, environment = globalThis, onChange = 
   const save = () => {
     if (revision.value === lastRevision) return;
     lastRevision = revision.value;
-    if (language.value !== 'en' && language.value !== 'zh-TW') return;
+    if (language.value !== 'en' && language.value !== 'zh-TW' && language.value !== 'ja') return;
     onChange(language.value);
     try {
       if (!storage) storage = environment.localStorage;

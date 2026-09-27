@@ -1491,7 +1491,7 @@ local function spawnEnemy(g: Game, kind: string, side: number)
     if kind=='trigon' then f.x=g.camX+1030;f.y=630;f.entering=false;f.cd=2 end
     if isBoss(kind) then
         g.boss = f
-        g.banner = tr(g, ENEMIES[kind].name) .. (if g.locale == 'zh-TW' then '！' else '!')
+        g.banner = tr(g, ENEMIES[kind].name) .. (if g.locale ~= 'en' then '！' else '!')
         g.bannerSub = if kind == 'boss' then 'JUMP OVER THE SHOCKWAVE' elseif kind == 'mammoth' then 'SIDESTEP HIS CHARGE' elseif kind == 'jinx' then 'DODGE THE HEX VOLLEY' elseif kind=='trigon' then 'JUMP THE SLAM - DODGE THE FIRE' else 'BOSS BATTLE'
         if BossPatterns.labels[kind] then g.bannerSub=BossPatterns.labels[kind] end
         remark(g,f,'encounter')
@@ -2561,17 +2561,18 @@ local function drawBanner(g: Game)
     G.restore()
 end
 
-local LANGUAGE_X, LANGUAGE_Y = 950, 28
+local LANGUAGE_X, LANGUAGE_Y, LANGUAGE_STEP = 850, 28, 136
 local function drawLanguage(g: Game)
-    G.rrect(LANGUAGE_X, LANGUAGE_Y, 310, 58, 12, G.hex(0x1C1330), 2)
-    for i, locale in { 'en', 'zh-TW' } do
-        local x = LANGUAGE_X + (if i == 1 then 4 else 124)
-        local w = if i == 1 then 116 else 182
+    G.rrect(LANGUAGE_X, LANGUAGE_Y, 410, 58, 12, G.hex(0x1C1330), 2)
+    for i, locale in L.locales do
+        local x, w = LANGUAGE_X + 4 + (i-1)*LANGUAGE_STEP, 130
         local selected = g.locale == locale
         local background = if selected then G.hex(0xFFE14D) elseif g.languageHover == i then G.hex(0x44315C) else G.hex(0x241A37)
         G.rrect(x, LANGUAGE_Y + 4, w, 50, 8, background)
-        G.text(if i == 1 then 'ENGLISH' else L.languageLabel, x + w / 2, LANGUAGE_Y + 19, if i == 1 then 14 else 18, if selected then G.INK else G.WHITE, .5, background)
+        G.setLocale(locale)
+        G.text(L.labels[i], x + w / 2, LANGUAGE_Y + 19, if i == 3 then 18 else 14, if selected then G.INK else G.WHITE, .5, background)
     end
+    G.setLocale(g.locale)
 end
 
 local function shadeBackdrop(alpha: number)
@@ -2797,6 +2798,7 @@ local function drawPlay(g: Game)
 end
 
 local function drawGame(g: Game)
+    G.setLocale(g.locale)
     if g.mode == 'title' then
         drawTitle(g)
     elseif g.mode == 'tutorial' then
@@ -2831,7 +2833,7 @@ function init(self: Main, context: Context): boolean
         self.browserKeyboard=vm:getString('browserKeyboard')
         self.browserLanguage=vm:getString('browserLanguage')
         self.languageRevision=vm:getNumber('languageRevision')
-        if self.browserLanguage and self.browserLanguage.value=='zh-TW' then self.g.locale='zh-TW' end
+        if self.browserLanguage and L.valid(self.browserLanguage.value) then self.g.locale=self.browserLanguage.value :: L.Locale end
     end
     return true
 end
@@ -2843,7 +2845,7 @@ end
 function advance(self: Main, seconds: number): boolean
     if self.browserLanguage then
         local value=self.browserLanguage.value
-        if value=='en' or value=='zh-TW' then self.g.locale=value :: L.Locale end
+        if L.valid(value) then self.g.locale=value :: L.Locale end
     end
     local keys=self.browserKeyboard
     if keys and keys.value~='' then
@@ -2903,8 +2905,10 @@ local function languageAt(self: Main, position: Vector): L.Locale?
     local point = screenPosition(self, position)
     local x, y = point.x, point.y
     if y < LANGUAGE_Y + 4 or y > LANGUAGE_Y + 54 then return nil end
-    if x >= LANGUAGE_X + 4 and x <= LANGUAGE_X + 120 then return 'en' end
-    if x >= LANGUAGE_X + 124 and x <= LANGUAGE_X + 306 then return 'zh-TW' end
+    for i,locale in L.locales do
+        local left = LANGUAGE_X + 4 + (i-1)*LANGUAGE_STEP
+        if x >= left and x <= left+130 then return locale end
+    end
     return nil
 end
 
@@ -2936,7 +2940,7 @@ end
 
 function pointerMove(self: Main, e: PointerEvent)
     local target = languageAt(self, e.position)
-    self.g.languageHover = if target == 'en' then 1 elseif target == 'zh-TW' then 2 else 0
+    self.g.languageHover = if target == 'en' then 1 elseif target == 'zh-TW' then 2 elseif target == 'ja' then 3 else 0
     if target or self.languagePointer == e.id then e:hit() end
     local action = menuAt(self, e.position)
     self.g.menuHover = action or ''

@@ -160,7 +160,7 @@ return function():Tests
             for _,s in T.steps do
                 for _,value in {s.title,s.line1,s.line2} do
                     expect(L.catalog[value]~=nil).is(true)
-                    for _,locale in {'en','zh-TW'} do
+                    for _,locale in {'en','zh-TW','ja'} do
                         expect(G.textWidth(L.text(locale :: L.Locale,value),16)).lessThan(635)
                     end
                 end

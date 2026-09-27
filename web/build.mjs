@@ -28,18 +28,22 @@ await mkdir(dist, { recursive: true });
 await build({ entryPoints: [path.join(web, 'game.mjs')], bundle: true, minify: true,
   format: 'esm', target: 'es2022', outfile: path.join(dist, 'game.js') });
 const fontPath = path.join(root, 'assets/fonts/noto-sans-tc-700.woff2');
+const jpFontPath = path.join(root, 'assets/fonts/noto-sans-jp-700.woff2');
 const releaseHash = createHash('sha256');
+releaseHash.update(await readFile(jpFontPath));
 releaseHash.update(await readFile(path.join(dist, 'game.js')));
 releaseHash.update(await readFile(fontPath));
 if (signedPath) releaseHash.update(await readFile(signedPath));
 const releaseVersion = releaseHash.digest('hex').slice(0, 12);
 const index = (await readFile(path.join(web, 'index.html'), 'utf8'))
   .replace('./game.js', `./game.js?v=${releaseVersion}`)
+  .replace('./noto-sans-jp.woff2', `./noto-sans-jp.woff2?v=${releaseVersion}`)
   .replace('./noto-sans-tc.woff2', `./noto-sans-tc.woff2?v=${releaseVersion}`);
 await Promise.all([
   writeFile(path.join(dist, 'index.html'), index),
   copyFile(path.join(web, 'node_modules/@rive-app/webgl2/rive.wasm'), path.join(dist, 'rive.wasm')),
   copyFile(fontPath, path.join(dist, 'noto-sans-tc.woff2')),
+  copyFile(jpFontPath, path.join(dist, 'noto-sans-jp.woff2')),
 ]);
 if (hostOnly) {
   await rm(path.join(dist, 'game.riv'), { force: true });

@@ -33,7 +33,7 @@ all three powers, and joining/pausing/returning to the menu.
 Skip with **Start / Enter / Esc / View** or the **Skip** button. Use **A / Space /
 Right** or **Next** to advance, and **Left** or **<** to revisit a step. Replay
 from **How to Play**, keyboard **H**, or controller **Y** on the main menu.
-The tutorial follows the selected English or Taiwan Chinese language and does
+The tutorial follows the selected English, Taiwan Chinese, or Japanese language and does
 not spend player resources or affect campaign progress.
 
 Press **Space** on the title screen (or **Start** on a controller) to begin.
@@ -149,7 +149,7 @@ Tamaranean shield or Azarath ward. Walk over equipment to collect it; its effect
 and duration appear below it, and active equipment appears in the player HUD.
 
 All eight bosses have distinct warned signature attacks and their own
-English/Traditional Chinese remarks. Cinderblock uses roars and concrete sound
+English/Traditional Chinese/Japanese remarks. Cinderblock uses roars and concrete sound
 captions. See [level mechanics and research](docs/level-identities.md)
 for all eight patterns, equipment effects and source notes.
 
@@ -218,14 +218,15 @@ for the save contract and validation commands.
 
 ## Files
 
-English and **繁體中文（台灣）** are available from the main menu's top-right
+English, **繁體中文（台灣）**, and **日本語** are available from the main menu's top-right
 selector. Click a language, press **Tab**, or press controller **LB**. The choice
 is saved in this browser. Until someone chooses a language, the web game uses
 the browser's preferred language (Traditional Chinese for `zh-TW`, `zh-Hant`,
-`zh-HK`, or `zh-MO`; English otherwise). Chinese uses the **Noto Sans TC**
+`zh-HK`, or `zh-MO`; Japanese for `ja`/`ja-JP`; English otherwise). Chinese uses **Noto Sans TC** and Japanese uses **Noto Sans JP**, both
 Google Fonts web font, bundled for offline Rive rendering. Taiwan TV terminology,
 source research and font regeneration details are in
-[docs/localization-zh-TW.md](docs/localization-zh-TW.md).
+[docs/localization-zh-TW.md](docs/localization-zh-TW.md). Japanese coverage and validation are in
+[docs/localization-ja.md](docs/localization-ja.md).
 
 | File | What it holds |
 |---|---|
