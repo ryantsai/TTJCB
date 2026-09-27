@@ -266,7 +266,7 @@ local function leanBegin(p: P.Pose, pivotY: number)
     end
     G.save()
     G.translate(0, pivotY)
-    G.rotate(lean)
+    G.rotate(lean + p.dash*.18)
     G.translate(0, -pivotY)
 end
 

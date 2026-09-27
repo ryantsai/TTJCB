@@ -21,6 +21,8 @@ Players can also drop in mid-game by pressing Start.
 | Action | Controller | Keyboard 1 | Keyboard 2 |
 |---|---|---|---|
 | Move | Left stick / D-pad | W A S D | Arrow keys |
+| Dash | Double-tap a stick / D-pad direction | Double-tap W / A / S / D | Double-tap an arrow key |
+| Dash attack | X during dash | J during dash | `,` or numpad 1 during dash |
 | Attack (3-hit combo) | X | J | `,` or numpad 1 |
 | Jump (attack in the air to jump-kick) | A | K or Space | `.` or numpad 2 |
 | Primary special (30 energy) | B / RB | L | `/` or numpad 3 |
@@ -39,6 +41,11 @@ Players can also drop in mid-game by pressing Start.
 | Raven | Shadow lash → rising shadow → dark palm | Dark Burst: an area blast around her ("Azarath Metrion Zinthos!") |
 | Beast Boy | Claw rake → back claw → twin claw pounce | Rhino Charge: turns into a rhino and plows through everyone |
 
+Double-tap the same direction within 0.26 seconds to dash. Release between taps
+(return the stick toward neutral); holding a direction walks normally. Dashes
+work in all four directions and keep their direction for the burst. Attack during
+the dash for a lunging knockdown strike that costs no energy.
+
 Press attack again during a strike to queue the next hit. Normal combos use no energy.
 Each Titan has different attack timing, reach, damage, and movement; the third hit knocks foes down.
 
@@ -54,14 +61,30 @@ Specials and ultimates can cancel a grounded normal attack. Tap the button once 
 holding RT does not repeat the ultimate. Energy fills over time and whenever you land or
 take a hit. The HUD shows the cost and readiness of B, Y and RT; the full meter turns gold.
 Pizza heals.
-Clear five waves of Slade Bots and Heavy Bots across Jump City, then beat
-Cinderblock.
+Fight through **four stages and sixteen encounters**, with larger mixed waves and
+reinforcements that scale up for co-op. Each stage ends with a boss; clearing the
+first three restores health and energy and awards one life (up to three).
+
+| Stage | Setting | Boss |
+|---|---|---|
+| Jump City | Sunset streets | Cinderblock — punches, charges, ground slams |
+| Iron Docks | Moonlit harbor, cranes and cargo | Mammoth — aggressive charges and heavy slams |
+| Hex Foundry | H.I.V.E. reactors and industrial machinery | Jinx — three-lane hex volleys |
+| Slade HQ | Rooftops above the city | Slade — blade volleys, rushes and close combat |
+
+Slade Bots and Heavy Bots are joined by **Razor Bots** (fast rush attacks),
+**Blaster Bots** (telegraphed ranged shots), **Guard Bots** (frontal shields;
+flank them or use knockdowns), and **Shock Bots** (jump over their electric pulse).
+Watch the attack warnings, change lanes to dodge projectiles, and jump over the
+marked slam areas. The HUD tracks the stage, local wave, and enemies remaining.
 
 ## Files
 
 | File | What it holds |
 |---|---|
 | `main.luau` | Rive layout entry point |
+| `campaign.luau` | enemy stats, stage identities, and all sixteen encounter rosters |
+| `campaign_test.luau` | campaign progression, new enemy behavior and co-op regressions |
 | `game.luau` | the game: input, modes, combat, AI, waves, camera, HUD |
 | `movement_test.luau` | regression tests using the game's input and update callbacks |
 | `heroes.luau` | the five Titans, drawn in the Teen Titans Go! style |

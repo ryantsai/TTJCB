@@ -15,6 +15,7 @@ local A = require('art')
 local Motion = require('motion')
 local Attacks = require('attacks')
 local Powers = require('powers')
+local Campaign = require('campaign')
 
 local W = G.W
 local H = G.H
@@ -23,6 +24,11 @@ local FMAX = 698 -- nearest the camera
 local GRAV = 1900
 local TAKEOFF = .05
 local LANDING = .18
+local DOUBLE_TAP = .26
+local DASH_TIME = .24
+local DASH_ATTACK_TIME = .38
+local DASH_HIT_START = .045
+local DASH_HIT_END = .20
 local SPECIAL_COST = 30
 local HERO_SCALE = 1.2
 local START_CHECKPOINT = 1 -- raise to test later waves
@@ -65,45 +71,13 @@ local HEROES: { Hero } = {
     },
 }
 
-type EnemyDef = {
-    name: string,
-    hp: number,
-    speed: number,
-    scale: number,
-    radius: number,
-    reach: number,
-    dmg: number,
-    windup: number,
-    score: number,
-}
-
-local ENEMIES: { [string]: EnemyDef } = {
-    bot = { name = 'SLADE BOT', hp = 42, speed = 150, scale = 1.35, radius = 26, reach = 76, dmg = 8, windup = 0.38, score = 300 },
-    heavy = { name = 'HEAVY BOT', hp = 100, speed = 105, scale = 1.5, radius = 38, reach = 104, dmg = 15, windup = 0.55, score = 800 },
-    boss = { name = 'CINDERBLOCK', hp = 560, speed = 125, scale = 1.9, radius = 70, reach = 170, dmg = 20, windup = 0.55, score = 5000 },
-}
-
+local ENEMIES = Campaign.enemies
+local CHECKPOINTS = Campaign.checkpoints
+type Spawn = Campaign.Spawn
+type Checkpoint = Campaign.Checkpoint
+local isBoss = Campaign.isBoss
 local SLOT_COLORS: { Color } = { G.hex(0xFF4D5E), G.hex(0x3A9BFF), G.hex(0x3BD16F), G.hex(0xFFC21A) }
 local POW_WORDS = { 'POW!', 'BAM!', 'WHAM!', 'KAPOW!', 'THWACK!', 'BOOM!' }
-
-type Spawn = { kind: string, delay: number, side: number }
-type Checkpoint = { x: number, spawns: { Spawn }, pizza: boolean, boss: boolean }
-
-local function wave(list: { string }, gap: number): { Spawn }
-    local out: { Spawn } = {}
-    for i, kind in list do
-        table.insert(out, { kind = kind, delay = (i - 1) * gap, side = if i % 2 == 0 then -1 else 1 })
-    end
-    return out
-end
-
-local CHECKPOINTS: { Checkpoint } = {
-    { x = 260, spawns = wave({ 'bot', 'bot', 'bot' }, 0.8), pizza = false, boss = false },
-    { x = 1280, spawns = wave({ 'bot', 'bot', 'bot', 'heavy', 'bot' }, 0.9), pizza = false, boss = false },
-    { x = 2360, spawns = wave({ 'bot', 'heavy', 'bot', 'bot', 'bot', 'heavy' }, 0.9), pizza = true, boss = false },
-    { x = 3480, spawns = wave({ 'heavy', 'bot', 'bot', 'heavy', 'bot', 'bot', 'bot' }, 0.8), pizza = true, boss = false },
-    { x = 4700, spawns = wave({ 'boss', 'bot', 'bot', 'bot', 'bot' }, 2.2), pizza = true, boss = true },
-}
 
 -- Keyboard map: GLFW key codes to (device, button).
 type KeyBind = { dev: string, btn: string }
@@ -161,6 +135,10 @@ type Fighter = {
     speed: number,
     power: number,
     jump: number,
+    tapDir: string,
+    tapTime: number,
+    dashX: number,
+    dashY: number,
     jumpBuffer: number,
     jumpCut: boolean,
     airTime: number,
@@ -229,6 +207,7 @@ type Pickup = { x: number, y: number, t: number, dead: boolean }
 
 type Game = {
     mode: string, -- title, select, play, over, win
+    stage: number,
     modeT: number,
     t: number,
     devs: { [string]: Device },
@@ -286,7 +265,7 @@ local function newGame(): Game
         table.insert(slots, newSlot(i))
     end
     return {
-        mode = 'title', modeT = 0, t = 0, devs = {}, slots = slots, fighters = {}, shots = {},
+        mode = 'title', stage = 1, modeT = 0, t = 0, devs = {}, slots = slots, fighters = {}, shots = {},
         fx = {}, pickups = {}, camX = 0, lockX = -1, cp = 1, pending = {}, waveT = 0, goT = 0,
         shake = 0, hitstop = 0, paused = false, nextId = 1, continueT = 0, banner = '',
         bannerSub = '', bannerT = 0, selectT = -1, boss = nil,
@@ -376,7 +355,7 @@ local function newFighter(g: Game, kind: string, team: number, x: number, y: num
         id = g.nextId, team = team, kind = kind, hero = 0, slot = 0, x = x, y = y, z = 0,
         vx = 0, vy = 0, vz = 0, facing = 1, hp = 50, maxHp = 50, state = 'idle', st = 0,
         combo = 0, queued = false, hit = {}, invuln = 0, flash = 0, speed = 150, power = 1,
-        jump = 600, jumpBuffer = 0, jumpCut = false, airTime = 0, landing = 0, float = 1, scale = 1, radius = 22, reach = 64, dmg = 8, windup = 0.35,
+        jump = 600, tapDir = '', tapTime = 0, dashX = 0, dashY = 0, jumpBuffer = 0, jumpCut = false, airTime = 0, landing = 0, float = 1, scale = 1, radius = 22, reach = 64, dmg = 8, windup = 0.35,
         pose = A.newPose(), ai = rnd(0.5, 2), cd = rnd(0.6, 1.6), armor = 0, removed = false,
         sp = 0, entering = false, hitT = 99, move = 0,
     }
@@ -384,7 +363,7 @@ local function newFighter(g: Game, kind: string, team: number, x: number, y: num
     local e = ENEMIES[kind]
     if e then
         local n = math.max(1, activeSlots(g))
-        local hpScale = if kind == 'boss' then 1 + 0.45 * (n - 1) else 1 + 0.15 * (n - 1)
+        local hpScale = if isBoss(kind) then 1 + 0.45 * (n - 1) else 1 + 0.15 * (n - 1)
         f.hp = math.floor(e.hp * hpScale)
         f.maxHp = f.hp
         f.speed = e.speed * rnd(0.9, 1.1)
@@ -421,6 +400,12 @@ end
 -- Combat -----------------------------------------------------------------------------
 
 local function damage(g: Game, att: Fighter, d: Fighter, dmg: number, kbx: number, knock: boolean, launch: number)
+    -- A guard blocks frontal light hits; flank, jump over it, or use a knockdown.
+    if d.kind == 'shield' and not knock and d.state ~= 'hurt' and d.state ~= 'down'
+        and (att.x - d.x) * d.facing > 0 and att.z < 35 then
+        dmg *= .3
+        addFx(g, 'word', d.x, d.y, 155, .45, 'BLOCK', G.hex(0x66D9FF), 16)
+    end
     dmg = math.floor(dmg + 0.5)
     d.hp -= dmg
     d.flash = 0.14
@@ -449,10 +434,10 @@ local function damage(g: Game, att: Fighter, d: Fighter, dmg: number, kbx: numbe
                 g.slots[att.slot].score += e.score
             end
         end
-    elseif d.kind == 'boss' then
-        -- Cinderblock shrugs off hits until enough damage piles up.
+    elseif isBoss(d.kind) then
+        -- Bosses stagger after sustained damage, with lighter armor on Jinx.
         d.armor += dmg
-        if d.armor < 70 then
+        if d.armor < (if d.kind == 'jinx' then 40 else 70) then
             return
         end
         d.armor = 0
@@ -514,7 +499,8 @@ local function startSpecial(g: Game, f: Fighter, s: Slot)
 end
 
 local function fireShot(g: Game, f: Fighter, kind: string, speed: number, dmg: number, knock: boolean, life: number)
-    local ox, oy = A.projectileOrigin(f.kind, f.pose)
+    local ox, oy = 34, -62
+    if f.team == 1 then ox, oy = A.projectileOrigin(f.kind, f.pose) end
     local shot: Shot = {
         kind = kind, x = f.x + f.facing * ox * f.scale, y = f.y, z = f.z - oy * f.scale, vx = speed * f.facing, t = 0,
         life = life, owner = f, dmg = dmg, knock = knock, hit = {}, dead = false, back = false,
@@ -701,11 +687,50 @@ end
 
 -- Players ------------------------------------------------------------------------------
 
+-- Use press edges, so holding a key/stick never repeats a dash. Track taps on
+-- the fighter: menu input, other players and respawns cannot prime this gesture.
+local function dashDirection(g: Game, f: Fighter, dev: Device?): string
+    if not dev or (f.state ~= 'idle' and f.state ~= 'walk') or f.z > 0 then
+        f.tapDir = ''
+        return ''
+    end
+    local dir = ''
+    if pressed(dev, 'L') and dev.mx < -.2 then dir = 'L'
+    elseif pressed(dev, 'R') and dev.mx > .2 then dir = 'R'
+    elseif pressed(dev, 'U') and dev.my < -.2 then dir = 'U'
+    elseif pressed(dev, 'D') and dev.my > .2 then dir = 'D' end
+    if dir == '' then return '' end
+    local double = f.tapDir == dir and g.t - f.tapTime <= DOUBLE_TAP
+    f.tapDir = if double then '' else dir
+    f.tapTime = g.t
+    return if double then dir else ''
+end
+
+local function dashStrike(g: Game, f: Fighter)
+    -- Project into the dash direction so lane dashes hit along their travel too.
+    for _, d in g.fighters do
+        if d.team ~= f.team and not f.hit[d.id] and canBeHit(d) then
+            local dx, dy = d.x - f.x, d.y - f.y
+            local along = dx*f.dashX + dy*f.dashY
+            local across = math.abs(dx*f.dashY - dy*f.dashX)
+            local reach = if f.dashX ~= 0 then f.reach + 28 else 74
+            local depth = if f.dashX ~= 0 then 30 else 44
+            if along > -d.radius*.6 and along < reach+d.radius
+                and across < depth+d.radius*.35 and math.abs(d.z-f.z) < 70+d.radius then
+                f.hit[d.id] = true
+                damage(g, f, d, 20*f.power, (if f.dashX ~= 0 then f.dashX else f.facing*.25)*340, true, 300)
+                if f.dashY ~= 0 and d.state == 'down' then d.vy = f.dashY*210 end
+            end
+        end
+    end
+end
+
 local function updatePlayer(g: Game, s: Slot, f: Fighter, dt: number)
     local dev = slotDevice(g, s)
     local mx = if dev then dev.mx else 0
     local my = if dev then dev.my else 0
     local state = f.state
+    local dashDir = dashDirection(g, f, dev)
 
     s.energy = math.min(100, s.energy + dt * 4)
     f.jumpBuffer = math.max(0, f.jumpBuffer-dt)
@@ -714,7 +739,36 @@ local function updatePlayer(g: Game, s: Slot, f: Fighter, dt: number)
     if (state == 'idle' or state == 'walk') and math.abs(mx) > .2 then f.facing = sign(mx) end
     if (state == 'idle' or state == 'walk' or state == 'attack') and requestPower(g, f, s, dev) then return end
 
-    if state == 'idle' or state == 'walk' then
+    if dashDir ~= '' and f.jumpBuffer <= 0 then
+        f.dashX = if dashDir == 'L' then -1 elseif dashDir == 'R' then 1 else 0
+        f.dashY = if dashDir == 'U' then -1 elseif dashDir == 'D' then 1 else 0
+        if f.dashX ~= 0 then f.facing = f.dashX end
+        f.combo, f.queued, f.landing = 0, false, 0
+        setState(f, 'dash')
+        state = 'dash'
+        addFx(g, 'dust', f.x, f.y, 0, .3, '', HEROES[f.hero].color, .9)
+    end
+
+    if state == 'dash' or state == 'dashatk' then
+        f.jumpBuffer = 0
+        if state == 'dash' and f.st < DASH_TIME and pressed(dev, 'x') then
+            setState(f, 'dashatk')
+            state = 'dashatk'
+        end
+        local duration = if state == 'dashatk' then DASH_ATTACK_TIME else DASH_TIME
+        if f.st >= duration then
+            f.vx, f.vy = 0, 0
+            setState(f, 'idle')
+            return
+        end
+        local speed = f.speed * (if state == 'dashatk' then 2.3 else 2.8)
+        if state == 'dashatk' then
+            speed *= 1 - math.clamp((f.st-DASH_HIT_END)/(DASH_ATTACK_TIME-DASH_HIT_END),0,1)
+            if f.st >= DASH_HIT_START and f.st <= DASH_HIT_END then dashStrike(g, f) end
+        end
+        f.vx = f.dashX * speed
+        f.vy = f.dashY * speed * .62
+    elseif state == 'idle' or state == 'walk' then
         f.vx = mx * f.speed
         f.vy = my * f.speed * 0.62
         if math.abs(mx) > 0.2 then
@@ -815,7 +869,7 @@ local function aheadOnSide(g: Game, target: Fighter, me: Fighter, side: number):
     local n = 0
     local myD = math.abs(me.x - target.x)
     for _, e in g.fighters do
-        if e ~= me and e.team == 2 and alive(e) and e.kind ~= 'boss' and sign(e.x - target.x) == side then
+        if e ~= me and e.team == 2 and alive(e) and not isBoss(e.kind) and sign(e.x - target.x) == side then
             local d = math.abs(e.x - target.x)
             if d < 240 and math.abs(e.y - target.y) < 70 and (d < myD or (d == myD and e.id < me.id)) then
                 n += 1
@@ -827,6 +881,8 @@ end
 
 local function updateEnemy(g: Game, f: Fighter, dt: number)
     local state = f.state
+    local behavior = ENEMIES[f.kind].behavior
+    local ranged = behavior == 'ranged' or behavior == 'hex'
     local tgt = nearestHero(g, f)
     if state == 'idle' or state == 'walk' then
         f.cd -= dt
@@ -837,10 +893,18 @@ local function updateEnemy(g: Game, f: Fighter, dt: number)
             f.state = 'idle'
             return
         end
+        -- Ranged units must enter the arena before choosing a firing distance.
+        if f.entering then
+            f.vx = sign(g.camX + W/2 - f.x) * f.speed
+            f.vy = math.clamp((tgt.y - f.y)*2, -f.speed*.6, f.speed*.6)
+            f.facing = sign(f.vx)
+            f.state = 'walk'
+            return
+        end
         local side = sign(f.x - tgt.x)
         local dxT = math.abs(tgt.x - f.x)
         local want = f.reach * 0.75 + tgt.radius * 0.5
-        if f.kind ~= 'boss' and aheadOnSide(g, tgt, f, side) > 0 then
+        if not ranged and not isBoss(f.kind) and aheadOnSide(g, tgt, f, side) > 0 then
             -- someone already has this side: go round the back, or wait a turn
             if aheadOnSide(g, tgt, f, -side) == 0 then
                 side = -side
@@ -849,17 +913,42 @@ local function updateEnemy(g: Game, f: Fighter, dt: number)
             end
         end
         local wx = tgt.x + side * want
-        local wy = tgt.y + (if f.kind == 'boss' then 0 else math.sin(f.id * 1.7) * 6)
+        local wy = tgt.y + (if isBoss(f.kind) then 0 else math.sin(f.id * 1.7) * 6)
         local dx = wx - f.x
         local dy = wy - f.y
         if f.ai <= 0 then
             f.ai = rnd(1.4, 3)
-            if math.random() < 0.22 and f.kind ~= 'boss' then
+            if math.random() < 0.22 and not isBoss(f.kind) then
                 f.cd = math.max(f.cd, 0.6)
             end
         end
-        if f.kind == 'boss' and f.cd <= 0 then
-            if dxT > 360 then
+        if f.cd <= 0 and not f.entering and math.abs(tgt.y - f.y) < 40 then
+            if ranged and dxT < f.reach + 100 then
+                setState(f, 'shoot')
+                f.facing = -side
+                f.cd = if behavior == 'hex' then 2.4 else 2.8
+                f.vx, f.vy = 0, 0
+                return
+            elseif behavior == 'shock' and dxT < 155 then
+                setState(f, 'pulse')
+                f.cd = 2.8
+                f.vx, f.vy = 0, 0
+                return
+            elseif behavior == 'master' and dxT > 260 then
+                setState(f, 'shoot')
+                f.facing = -side
+                f.cd = 2.1
+                f.vx, f.vy = 0, 0
+                return
+            elseif behavior == 'rush' and dxT > 160 and dxT < 420 then
+                setState(f, 'charge')
+                f.facing = -side
+                f.cd = 2.6
+                return
+            end
+        end
+        if (behavior == 'golem' or behavior == 'brute' or behavior == 'master') and f.cd <= 0 and not f.entering then
+            if dxT > (if behavior == 'brute' then 210 else 360) then
                 setState(f, 'charge')
                 f.facing = -side
                 f.cd = rnd(2.2, 3.2)
@@ -872,12 +961,12 @@ local function updateEnemy(g: Game, f: Fighter, dt: number)
             end
         end
         local inRange = dxT < f.reach + tgt.radius * 0.5 and math.abs(tgt.y - f.y) < 18
-        if inRange and f.cd <= 0 then
+        if inRange and f.cd <= 0 and not ranged then
             f.vx = 0
             f.vy = 0
             f.facing = sign(tgt.x - f.x)
             setState(f, 'eatk')
-            f.cd = if f.kind == 'boss' then rnd(1.2, 2) else rnd(1.1, 2.3)
+            f.cd = if isBoss(f.kind) then rnd(1.2, 2) else rnd(1.1, 2.3)
         elseif math.abs(dx) < 10 and math.abs(dy) < 8 then
             f.vx = 0
             f.vy = 0
@@ -889,12 +978,37 @@ local function updateEnemy(g: Game, f: Fighter, dt: number)
             f.facing = if math.abs(dx) > 40 then sign(dx) else sign(tgt.x - f.x)
             f.state = 'walk'
         end
+    elseif state == 'shoot' then
+        f.vx, f.vy = 0, 0
+        if f.st >= f.windup and f.sp == 0 then
+            f.sp = 1
+            local kind = if behavior == 'hex' then 'hex' elseif behavior == 'master' then 'blade' else 'laser'
+            local count = if behavior == 'hex' or behavior == 'master' then 3 else 1
+            for i = 1, count do
+                fireShot(g, f, kind, if behavior == 'hex' then 360 else 470, f.dmg, false, 3)
+                if count > 1 then g.shots[#g.shots].y += (i - 2) * 58 end
+            end
+        end
+        if f.st > f.windup + .65 then setState(f, 'idle') end
+    elseif state == 'pulse' then
+        f.vx, f.vy = 0, 0
+        if f.st >= f.windup and f.sp == 0 then
+            f.sp = 1
+            addFx(g, 'wave', f.x, f.y, 0, .55, '', G.hex(0x66D9FF), 1)
+            for _, d in g.fighters do
+                if d.team == 1 and canBeHit(d) and d.z < 30
+                    and ((d.x - f.x) / 165)^2 + ((d.y - f.y) / 65)^2 < 1 then
+                    damage(g, f, d, f.dmg, sign(d.x - f.x) * 180, false, 0)
+                end
+            end
+        end
+        if f.st > f.windup + .6 then setState(f, 'idle') end
     elseif state == 'eatk' then
         f.vx = 0
         f.vy = 0
         local w = f.windup
         if f.st >= w and f.st <= w + 0.12 then
-            local knock = f.kind == 'boss' or (f.kind == 'heavy' and f.id % 2 == 0)
+            local knock = isBoss(f.kind) or (f.kind == 'heavy' and f.id % 2 == 0)
             sweep(g, f, f.reach, 24, 70, f.dmg, if knock then 300 else 150, knock, 360)
         end
         if f.st >= w + 0.45 then
@@ -926,16 +1040,16 @@ local function updateEnemy(g: Game, f: Fighter, dt: number)
             f.vx = 0
             f.vy = 0
         else
-            f.vx = f.facing * 540
+            f.vx = f.facing * (if behavior == 'rush' then 620 else 540)
             if tgt then
                 f.vy = math.clamp((tgt.y - f.y) * 2, -80, 80)
             end
-            sweep(g, f, 70, 30, 80, 18, 380, true, 420)
+            sweep(g, f, 70, 30, 80, f.dmg, 300, behavior ~= 'rush', 420)
             if math.floor(f.st * 12) ~= math.floor((f.st - dt) * 12) then
                 addFx(g, 'dust', f.x - f.facing * 60, f.y, 0, 0.45, '', G.WHITE, 1.6)
             end
             local edge = (f.facing > 0 and f.x > g.camX + W - 90) or (f.facing < 0 and f.x < g.camX + 90)
-            if f.st > 1.7 or edge then
+            if f.st > (if behavior == 'rush' then .95 else 1.7) or edge then
                 g.shake = math.max(g.shake, 0.2)
                 setState(f, 'idle')
                 f.vx = 0
@@ -977,7 +1091,7 @@ local function updateShots(g: Game, dt: number)
                     if math.abs(d.x - s.x) < 26 + d.radius and math.abs(d.y - s.y) < 22 + d.radius * 0.3 and s.z > d.z and s.z < d.z + A.height(d.kind) * d.scale + 20 then
                         s.hit[d.id] = true
                         damage(g, s.owner, d, s.dmg, sign(s.vx) * (if s.knock then 300 else 110), s.knock, 380)
-                        if s.kind == 'bolt' then
+                        if s.kind ~= 'bird' then
                             s.dead = true
                             break
                         end
@@ -1025,7 +1139,7 @@ local function physics(g: Game, f: Fighter, dt: number)
     end
 
     local s = f.state
-    if s == 'hurt' and f.st > (if f.kind == 'boss' then 0.45 else 0.3) then
+    if s == 'hurt' and f.st > (if isBoss(f.kind) then 0.45 else 0.3) then
         setState(f, 'idle')
         f.vx = 0
     elseif s == 'down' then
@@ -1071,7 +1185,9 @@ local function updatePose(g: Game, f: Fighter, dt: number)
     local p = f.pose
     p.t = g.t + f.id * 0.37
     local speed = math.sqrt(f.vx * f.vx + f.vy * f.vy)
-    local walking = (f.state == 'walk' or f.state == 'idle') and speed > 20
+    local dashing = f.state == 'dash' or f.state == 'dashatk'
+    p.dash = if dashing then 1 else 0
+    local walking = (f.state == 'walk' or f.state == 'idle' or dashing) and speed > 20
     p.speed=math.clamp(speed/f.speed,0,1)
     p.walk += ((if walking then p.speed else 0) - p.walk) * math.min(1, dt * 14)
     local stride=if f.kind=='cyborg' then 27 elseif f.kind=='beast' then 19 else 22
@@ -1097,7 +1213,13 @@ local function updatePose(g: Game, f: Fighter, dt: number)
     p.windup = 0
     p.stroke = 0
     p.active = false
-    if f.state == 'attack' then
+    if f.state == 'dashatk' then
+        p.move = 1
+        p.ext = Motion.strike(f.st, DASH_ATTACK_TIME, DASH_HIT_START, DASH_HIT_END)
+        p.windup = Motion.windup(f.st, DASH_HIT_START, p.ext)
+        p.active = f.st >= DASH_HIT_START and f.st <= DASH_HIT_END
+        p.stroke = math.clamp((f.st-DASH_HIT_START)/(DASH_HIT_END-DASH_HIT_START),0,1)
+    elseif f.state == 'attack' then
         local attack = Attacks.get(f.kind, f.combo)
         local dur, activeStart, activeEnd = attack.duration, attack.first, attack.last
         p.stroke = math.clamp((f.st - activeStart) / (activeEnd - activeStart), 0, 1)
@@ -1121,7 +1243,7 @@ local function updatePose(g: Game, f: Fighter, dt: number)
     elseif f.state == 'special' then
         p.move = 5
         p.ext = 1
-    elseif f.state == 'eatk' then
+    elseif f.state == 'eatk' or f.state == 'shoot' or f.state == 'pulse' then
         p.move = 6
         local w = f.windup
         if f.st < w then
@@ -1160,16 +1282,17 @@ local function spawnEnemy(g: Game, kind: string, side: number)
     local f = newFighter(g, kind, 2, x, y)
     f.entering = true
     f.facing = -side
-    if kind == 'boss' then
+    if isBoss(kind) then
         g.boss = f
-        g.banner = 'CINDERBLOCK!'
-        g.bannerSub = 'THE BOSS HAS ARRIVED'
+        g.banner = ENEMIES[kind].name .. '!'
+        g.bannerSub = if kind == 'boss' then 'JUMP OVER THE SHOCKWAVE' elseif kind == 'mammoth' then 'SIDESTEP HIS CHARGE' elseif kind == 'jinx' then 'DODGE THE HEX VOLLEY' else 'THE FINAL SHOWDOWN'
         g.bannerT = 2.2
         g.shake = 0.4
     end
 end
 
 local function beginCheckpoint(g: Game, cp: Checkpoint)
+    g.stage = cp.stage
     g.lockX = cp.x
     g.waveT = 0
     g.pending = {}
@@ -1180,7 +1303,7 @@ local function beginCheckpoint(g: Game, cp: Checkpoint)
     -- more villains for more Titans
     local extra = math.floor((#cp.spawns - (if cp.boss then 1 else 0)) * 0.35 * (n - 1) + 0.5)
     for i = 1, extra do
-        table.insert(g.pending, { kind = 'bot', delay = 1.5 + i * 0.7, side = if i % 2 == 0 then 1 else -1 })
+        table.insert(g.pending, { kind = cp.spawns[2 + (i - 1) % (#cp.spawns - 1)].kind, delay = 1.5 + i * 0.7, side = if i % 2 == 0 then 1 else -1 })
     end
     if cp.pizza then
         table.insert(g.pickups, { x = cp.x + rnd(300, 900), y = rnd(FMIN + 30, FMAX - 30), t = 0, dead = false })
@@ -1195,6 +1318,7 @@ local function startGame(g: Game)
     g.fx = {}
     g.pickups = {}
     g.cp = START_CHECKPOINT
+    g.stage = CHECKPOINTS[g.cp].stage
     g.camX = if START_CHECKPOINT > 1 then CHECKPOINTS[START_CHECKPOINT].x - 400 else 0
     g.lockX = -1
     g.pending = {}
@@ -1210,14 +1334,14 @@ local function startGame(g: Game)
             s.energy = 60
             s.out = false
             s.respawn = 0
-            spawnHero(g, s, 170 + k * 80, 520 + k * 44)
+            spawnHero(g, s, g.camX + 170 + k * 80, 520 + k * 44)
             k += 1
         else
             s.fighter = nil
         end
     end
     g.banner = 'TITANS, GO!'
-    g.bannerSub = 'CLEAN UP JUMP CITY'
+    g.bannerSub = Campaign.stages[g.stage].name .. ' / ' .. Campaign.stages[g.stage].subtitle
     g.bannerT = 2.4
     g.goT = 5
 end
@@ -1373,6 +1497,7 @@ local function updatePlay(g: Game, dt: number)
         end
     end
     if g.paused then
+        for _, f in g.fighters do f.tapDir = '' end
         for _, s in g.slots do
             local d = slotDevice(g, s)
             if d and (pressed(d, 'cancel') or pressed(d, 'back')) then
@@ -1445,7 +1570,7 @@ local function updatePlay(g: Game, dt: number)
             if f.team == 2 and f.st > 1.1 then
                 f.removed = true
                 local chance = if f.kind == 'heavy' then 0.4 else 0.12
-                if f.kind ~= 'boss' and math.random() < chance then
+                if not isBoss(f.kind) and math.random() < chance then
                     table.insert(g.pickups, { x = f.x, y = f.y, t = 0, dead = false })
                 end
             elseif f.team == 1 and f.st > 1.3 then
@@ -1540,7 +1665,7 @@ local function updatePlay(g: Game, dt: number)
             local cp = CHECKPOINTS[g.cp]
             g.lockX = -1
             g.cp += 1
-            if cp.boss then
+            if g.cp > #CHECKPOINTS then
                 g.mode = 'win'
                 g.modeT = 0
                 g.banner = ''
@@ -1549,6 +1674,32 @@ local function updatePlay(g: Game, dt: number)
                         s.score += 10000
                     end
                 end
+            elseif cp.boss then
+                -- A fresh arena and a recovery reward between stages.
+                g.stage = CHECKPOINTS[g.cp].stage
+                g.camX = CHECKPOINTS[g.cp].x - 260
+                g.boss = nil
+                g.shots = {}
+                g.pickups = {}
+                for _, slot in g.slots do
+                    if slot.dev ~= '' and not slot.out then
+                        slot.score += 2500
+                        slot.lives = math.min(3, slot.lives + 1)
+                        slot.energy = 100
+                        local hero = slot.fighter
+                        if hero and alive(hero) then
+                            hero.x, hero.y = g.camX + 180 + slot.idx * 65, 530 + slot.idx * 30
+                            hero.hp = hero.maxHp
+                            hero.z, hero.vx, hero.vy, hero.vz = 0, 0, 0, 0
+                            hero.invuln = 2
+                            setState(hero, 'idle')
+                        end
+                    end
+                end
+                g.banner = Campaign.stages[g.stage].name
+                g.bannerSub = 'STAGE ' .. g.stage .. ' / HEALTH AND ENERGY RESTORED'
+                g.bannerT = 3
+                g.goT = 4
             else
                 g.goT = 3.5
             end
@@ -1621,6 +1772,15 @@ end
 local function drawFighter(g: Game, f: Fighter)
     local sx = f.x - g.camX
     local sy = f.y - f.z
+    if f.team == 1 and (f.state == 'dash' or f.state == 'dashatk') then
+        local color = HEROES[f.hero].color
+        for i = 1, 4 do
+            local offset = 18 + i*11
+            local x = sx - f.dashX*offset
+            local y = sy - 28 - i*17 - f.dashY*offset*.62
+            G.line(x, y, x-f.dashX*48, y-f.dashY*30, 4, G.fade(color,.65-i*.1))
+        end
+    end
     G.save()
     G.translate(sx, sy)
     G.scale(f.facing * f.scale, f.scale)
@@ -1636,6 +1796,18 @@ local function drawFighter(g: Game, f: Fighter)
     A.fighter(f.kind, f.pose)
     G.restore()
 
+    if f.team == 2 then
+        if (f.state == 'pulse' and f.st < f.windup) or (f.state == 'slam' and f.st < .65) then
+            local pulse = f.state == 'pulse'
+            local radius = if pulse then 165 else 250
+            local cx = sx + (if pulse then 0 else f.facing * 80)
+            G.oellipse(cx, f.y, radius, if pulse then 65 else 100, G.fade(G.hex(0xFF4D5E), .14), 2)
+            G.text('JUMP!', cx, f.y + 12, 14, G.hex(0xFFE14D), .5)
+        elseif (f.state == 'shoot' and f.st < f.windup) or (f.state == 'charge' and f.st < .45) then
+            G.text(if f.state == 'shoot' then '!' else 'RUSH!', sx, sy - A.height(f.kind) * f.scale - 28, 22, G.hex(0xFFE14D), .5)
+        end
+    end
+
     -- the Sonic Cannon beam comes out of Cyborg's arm
     if f.kind == 'cyborg' and f.state == 'special' and f.st > 0.28 and f.st < 0.82 then
         local p = math.min(1, (f.st - 0.28) / 0.08)
@@ -1649,7 +1821,7 @@ local function drawFighter(g: Game, f: Fighter)
         local ty = sy - top - 30
         G.poly({ sx - 7, ty + 16, sx + 7, ty + 16, sx, ty + 24 }, s.color, 1.5)
         G.text(`P{f.slot}`, sx, ty - 2, 14, s.color, 0.5)
-    elseif f.kind ~= 'boss' and f.hitT < 2 and f.state ~= 'ko' then
+    elseif not isBoss(f.kind) and f.hitT < 2 and f.state ~= 'ko' then
         local w = 60 * f.scale
         local by = sy - top - 16
         G.rect(sx - w / 2 - 2, by - 2, w + 4, 10, G.INK)
@@ -1664,13 +1836,15 @@ local function drawShot(g: Game, s: Shot)
         A.birdarang(sx, sy, s.t * 24)
     elseif s.kind == 'bolt' then
         A.starbolt(sx, sy, s.t, sign(s.vx))
+    else
+        A.enemyShot(s.kind, sx, sy, s.t, sign(s.vx))
     end
 end
 
 type DrawItem = { y: number, kind: number, idx: number }
 
 local function drawWorld(g: Game)
-    A.stage(g.camX, g.t)
+    A.stage(g.camX, g.t, Campaign.stages[g.stage].theme)
 
     -- ground effects and shadows first
     for _, e in g.fx do
@@ -1806,9 +1980,15 @@ local function drawHud(g: Game)
         end
     end
 
+    local cp = CHECKPOINTS[math.min(g.cp, #CHECKPOINTS)]
+    G.rrect(16, 114, 420, 34, 8, G.fade(G.INK, .88))
+    G.text(`{g.stage}/4  {Campaign.stages[g.stage].name}  -  WAVE {cp.wave}/4`, 30, 124, 13, G.hex(0xFFE14D))
+    if g.lockX >= 0 then
+        G.text(`ENEMIES {enemiesLeft(g) + #g.pending}`, W - 26, 124, 14, G.WHITE, 1)
+    end
     local b = g.boss
     if b and not b.removed then
-        G.text('CINDERBLOCK', W / 2, H - 58, 18, G.hex(0xFFD23A), 0.5)
+        G.text(ENEMIES[b.kind].name, W / 2, H - 58, 18, G.hex(0xFFD23A), 0.5)
         bar(W / 2 - 300, H - 32, 600, 16, b.hp / b.maxHp, G.hex(0xFF7A2E))
     end
 end
@@ -2132,10 +2312,10 @@ function gamepadEvent(self: Main, e: GamepadEvent)
         d.mx /= length
         d.my /= length
     end
-    setButton(d, 'L', d.mx < -0.5)
-    setButton(d, 'R', d.mx > 0.5)
-    setButton(d, 'U', d.my < -0.5)
-    setButton(d, 'D', d.my > 0.5)
+    setButton(d, 'L', d.mx < -(if d.held['L'] then .3 else .65))
+    setButton(d, 'R', d.mx > (if d.held['R'] then .3 else .65))
+    setButton(d, 'U', d.my < -(if d.held['U'] then .3 else .65))
+    setButton(d, 'D', d.my > (if d.held['D'] then .3 else .65))
     if std then
         setButton(d, 'a', e.south)
         setButton(d, 'b', e.east or e.rightShoulder)

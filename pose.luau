@@ -3,6 +3,7 @@ local P = {}
 
 export type Pose = {
     t: number, -- animation clock (s)
+    dash: number, -- 0..1 sprint lean and dash-strike momentum
     walk: number, -- 0..1 walk blend
     phase: number, -- walk cycle (radians)
     air: boolean,
@@ -26,7 +27,7 @@ export type Pose = {
 }
 
 function P.new(): Pose
-    return { t = 0, walk = 0, phase = 0, air = false, rise = 0, airTime = 0, launch = 0, land = 0, speed = 0, settle = 0, move = 0, powerTime = 0, style = '', windup = 0, stroke = 0, active = false, ext = 0, hurt = false, down = 0, ko = false, flip = 1 }
+    return { t = 0, dash = 0, walk = 0, phase = 0, air = false, rise = 0, airTime = 0, launch = 0, land = 0, speed = 0, settle = 0, move = 0, powerTime = 0, style = '', windup = 0, stroke = 0, active = false, ext = 0, hurt = false, down = 0, ko = false, flip = 1 }
 end
 
 return P

@@ -1,0 +1,65 @@
+-- Campaign roster and authored encounters, shared by gameplay and regression tests.
+local C = {}
+export type EnemyDef = {
+    name: string, hp: number, speed: number, scale: number, radius: number,
+    reach: number, dmg: number, windup: number, score: number,
+    behavior: string, boss: boolean,
+}
+C.enemies = {
+    bot = { name = 'SLADE BOT', hp = 42, speed = 150, scale = 1.35, radius = 26, reach = 76, dmg = 8, windup = .38, score = 300, behavior = 'melee', boss = false },
+    heavy = { name = 'HEAVY BOT', hp = 100, speed = 105, scale = 1.5, radius = 38, reach = 104, dmg = 15, windup = .55, score = 800, behavior = 'melee', boss = false },
+    runner = { name = 'RAZOR BOT', hp = 32, speed = 245, scale = 1.2, radius = 23, reach = 82, dmg = 7, windup = .27, score = 450, behavior = 'rush', boss = false },
+    gunner = { name = 'BLASTER BOT', hp = 46, speed = 135, scale = 1.3, radius = 26, reach = 420, dmg = 9, windup = .7, score = 600, behavior = 'ranged', boss = false },
+    shield = { name = 'GUARD BOT', hp = 90, speed = 95, scale = 1.45, radius = 34, reach = 96, dmg = 12, windup = .6, score = 750, behavior = 'guard', boss = false },
+    shock = { name = 'SHOCK BOT', hp = 68, speed = 140, scale = 1.35, radius = 28, reach = 130, dmg = 11, windup = .8, score = 700, behavior = 'shock', boss = false },
+    boss = { name = 'CINDERBLOCK', hp = 560, speed = 125, scale = 1.9, radius = 70, reach = 170, dmg = 20, windup = .55, score = 5000, behavior = 'golem', boss = true },
+    mammoth = { name = 'MAMMOTH', hp = 650, speed = 145, scale = 2, radius = 57, reach = 145, dmg = 21, windup = .65, score = 6500, behavior = 'brute', boss = true },
+    jinx = { name = 'JINX', hp = 530, speed = 185, scale = 1.65, radius = 30, reach = 450, dmg = 12, windup = .85, score = 7500, behavior = 'hex', boss = true },
+    slade = { name = 'SLADE', hp = 820, speed = 205, scale = 1.65, radius = 34, reach = 125, dmg = 18, windup = .4, score = 10000, behavior = 'master', boss = true },
+} :: { [string]: EnemyDef }
+export type Spawn = { kind: string, delay: number, side: number }
+export type Checkpoint = { x: number, spawns: { Spawn }, pizza: boolean, boss: boolean, stage: number, wave: number }
+C.stages = {
+    { name = 'JUMP CITY', subtitle = 'STREET SWEEP', theme = 'city' },
+    { name = 'IRON DOCKS', subtitle = 'BREAK THE BLOCKADE', theme = 'docks' },
+    { name = 'HEX FOUNDRY', subtitle = 'SHUT DOWN THE MACHINES', theme = 'foundry' },
+    { name = 'SLADE HQ', subtitle = 'ROOFTOP SHOWDOWN', theme = 'rooftop' },
+}
+local function wave(list: { string }, gap: number): { Spawn }
+    local out: { Spawn } = {}
+    for i, kind in list do
+        table.insert(out, { kind = kind, delay = (i - 1) * gap, side = if i % 2 == 0 then -1 else 1 })
+    end
+    return out
+end
+local encounters = {
+    { 'bot', 'bot', 'runner', 'bot', 'runner' },
+    { 'bot', 'runner', 'heavy', 'bot', 'runner', 'bot' },
+    { 'heavy', 'bot', 'gunner', 'runner', 'bot', 'heavy', 'bot' },
+    { 'boss', 'bot', 'runner', 'bot', 'gunner' },
+    { 'shield', 'bot', 'gunner', 'runner', 'shield', 'bot', 'gunner' },
+    { 'gunner', 'runner', 'heavy', 'shield', 'runner', 'bot', 'gunner', 'bot' },
+    { 'heavy', 'shield', 'gunner', 'runner', 'heavy', 'runner', 'shield', 'gunner' },
+    { 'mammoth', 'runner', 'shield', 'runner', 'gunner', 'bot' },
+    { 'shock', 'bot', 'runner', 'gunner', 'shock', 'shield', 'bot', 'runner' },
+    { 'shield', 'shock', 'gunner', 'heavy', 'runner', 'shock', 'bot', 'gunner' },
+    { 'shock', 'heavy', 'runner', 'shield', 'gunner', 'shock', 'heavy', 'runner', 'bot' },
+    { 'jinx', 'shock', 'runner', 'shield', 'shock', 'gunner' },
+    { 'runner', 'shield', 'gunner', 'shock', 'heavy', 'runner', 'gunner', 'shield', 'bot' },
+    { 'heavy', 'runner', 'shock', 'gunner', 'shield', 'runner', 'heavy', 'shock', 'gunner' },
+    { 'shield', 'gunner', 'runner', 'shock', 'heavy', 'gunner', 'runner', 'shield', 'shock', 'heavy' },
+    { 'slade', 'runner', 'shield', 'gunner', 'shock', 'heavy', 'runner', 'gunner' },
+}
+C.checkpoints = {} :: { Checkpoint }
+for i, list in encounters do
+    local boss = i % 4 == 0
+    table.insert(C.checkpoints, {
+        x = 260 + (i - 1) * 1000, spawns = wave(list, if boss then 2.8 else .95),
+        pizza = i > 1, boss = boss, stage = math.ceil(i / 4), wave = (i - 1) % 4 + 1,
+    })
+end
+function C.isBoss(kind: string): boolean
+    local def = C.enemies[kind]
+    return def ~= nil and def.boss
+end
+return C

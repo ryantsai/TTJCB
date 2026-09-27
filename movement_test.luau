@@ -79,6 +79,15 @@ local function pad(app: any, button: string, down: boolean)
     app.gamepadEvent(app, event)
 end
 
+local function padMove(app: any, x: number, y: number, dpad: boolean?, attack: boolean?)
+    app.gamepadEvent(app, {
+        deviceId=0, isStandardMapping=true, leftStick=Vector.xy(if dpad then 0 else x, if dpad then 0 else y),
+        dpadLeft=dpad and x<0, dpadRight=dpad and x>0, dpadUp=dpad and y<0, dpadDown=dpad and y>0,
+        south=false, east=false, west=attack==true, north=false, rightShoulder=false,
+        rightTriggerPressed=false, rightTrigger=0, start=false, forward=false, back=false,
+    })
+end
+
 return function(): Tests
     return function(test: Tester)
         test.case('strikes anticipate, hold through hit window, and recover smoothly', function(expect)
@@ -549,6 +558,136 @@ return function(): Tests
             expect(d.mx).is(0)
             key(app, 68, false)
             expect(d.mx).is(-1)
+        end)
+        test.case('double taps dash in all four directions for every Titan and holding does not repeat', function(expect)
+            for hero=1,5 do
+                for _,dir in {{65,-1,0},{68,1,0},{87,0,-1},{83,0,1}} do
+                    local app=game(hero)
+                    local f=app.g.slots[1].fighter
+                    press(app,dir[1])
+                    expect(f.state).is('idle')
+                    key(app,dir[1],true)
+                    step(app,1)
+                    expect(f.state).is('dash')
+                    expect(f.dashX).is(dir[2])
+                    expect(f.dashY).is(dir[3])
+                    expect(f.pose.dash).is(1)
+                    local v=if dir[2]~=0 then math.abs(f.vx) else math.abs(f.vy)/.62
+                    expect(v).greaterThan(f.speed*2)
+                    if dir[2]~=0 then expect(f.facing).is(dir[2]) end
+                    step(app,45)
+                    expect(f.state).is('walk')
+                    expect(f.pose.dash).is(0)
+                    key(app,dir[1],false)
+                    step(app,1)
+                    expect(f.state).is('idle')
+                end
+            end
+        end)
+        test.case('slow, alternating, repeated-held, paused and airborne taps cannot prime a dash', function(expect)
+            for _,mode in {'slow','alternate','held','paused','air'} do
+                local app=game(1)
+                local f=app.g.slots[1].fighter
+                press(app,68)
+                if mode=='slow' then step(app,20)
+                elseif mode=='alternate' then press(app,65)
+                elseif mode=='paused' then press(app,257); step(app,1); press(app,257)
+                elseif mode=='air' then press(app,75); step(app,7)
+                elseif mode=='held' then
+                    step(app,20)
+                    key(app,68,true)
+                    step(app,1)
+                end
+                key(app,68,true)
+                step(app,1)
+                expect(f.state).never.is('dash')
+            end
+        end)
+        test.case('keyboard two and gamepad stick or D-pad double taps use the same dash gesture', function(expect)
+            for _,dpad in {false,true} do
+                for _,dir in {{1,0},{-1,0},{0,1},{0,-1}} do
+                    local app=game(1)
+                    app.g.slots[1].dev='pad0'
+                    padMove(app,dir[1],dir[2],dpad); step(app,1)
+                    padMove(app,0,0,dpad); step(app,3)
+                    padMove(app,dir[1],dir[2],dpad); step(app,1)
+                    expect(app.g.slots[1].fighter.state).is('dash')
+                    padMove(app,dir[1],dir[2],dpad,true); step(app,1)
+                    expect(app.g.slots[1].fighter.state).is('dashatk')
+                end
+            end
+            local app=game(1)
+            app.g.slots[1].dev='kb2'
+            press(app,262); press(app,262)
+            expect(app.g.slots[1].fighter.state).is('dash')
+            press(app,44)
+            expect(app.g.slots[1].fighter.state).is('dashatk')
+        end)
+        test.case('stick jitter does not simulate a second directional press', function(expect)
+            local app=game(1)
+            app.g.slots[1].dev='pad0'
+            for _,x in {1,.49,.7,.4,.8,.51,1} do
+                padMove(app,x,0); step(app,1)
+                expect(app.g.slots[1].fighter.state).is('walk')
+            end
+            padMove(app,0,0); step(app,1)
+            padMove(app,1,0); step(app,1)
+            expect(app.g.slots[1].fighter.state).is('dash')
+        end)
+        test.case('dash attacks hit once along travel, knock down, skip allies and recover for all Titans', function(expect)
+            for hero=1,5 do
+                for _,dir in {{65,-1,0},{68,1,0},{87,0,-1},{83,0,1}} do
+                    local app=game(hero)
+                    local f=app.g.slots[1].fighter
+                    press(app,dir[1]); press(app,dir[1])
+                    local front=target(app,dir[2]*85)
+                    front.y=f.y+dir[3]*65
+                    local rear=target(app,-dir[2]*160)
+                    rear.y=f.y-dir[3]*140
+                    local ally=target(app,dir[2]*85)
+                    ally.y=front.y
+                    ally.team=1
+                    local energy=app.g.slots[1].energy
+                    press(app,74)
+                    expect(f.state).is('dashatk')
+                    expect(f.pose.move).is(1)
+                    step(app,40)
+                    expect(front.hp).is(1000-math.floor(20*f.power+.5))
+                    expect(front.state).is('down')
+                    expect(rear.hp).is(1000)
+                    expect(ally.hp).is(1000)
+                    expect(f.state).is('idle')
+                    expect(f.vx).is(0)
+                    expect(f.vy).is(0)
+                    expect(app.g.slots[1].energy).greaterThanOrEqual(energy)
+                end
+            end
+        end)
+        test.case('attack can share the second tap, but attacks after the dash are normal', function(expect)
+            local app=game(1)
+            local f=app.g.slots[1].fighter
+            press(app,68)
+            key(app,68,true); key(app,74,true); step(app,1)
+            expect(f.state).is('dashatk')
+            key(app,68,false); key(app,74,false); step(app,40)
+            press(app,74)
+            expect(f.state).is('attack')
+            expect(f.combo).is(1)
+        end)
+        test.case('dash ends at arena bounds, does not hurt on contact and cannot override damage', function(expect)
+            local app=game(1)
+            local f=app.g.slots[1].fighter
+            local foe=target(app,80)
+            press(app,68); press(app,68); step(app,18)
+            expect(foe.hp).is(1000)
+            f.x=app.g.camX+40
+            press(app,65); press(app,65); step(app,10)
+            expect(f.x).is(app.g.camX+36)
+            f.state='hurt'
+            f.st=0
+            f.vx=0
+            press(app,74)
+            expect(f.state).is('hurt')
         end)
         test.case('movement stays inside the street and stops while paused', function(expect)
             local app = game(1)
