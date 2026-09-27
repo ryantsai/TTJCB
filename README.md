@@ -50,7 +50,10 @@ picks a different Titan with left/right and readies up with A. Once everyone is
 ready the game starts after 3 seconds, or right away if someone presses Start.
 Players can also drop in mid-game by pressing Start.
 Character cards label their three powers Skill 1, Skill 2, and Super
-(技能1、技能2、絕招 in Traditional Chinese).
+(招式1、招式2、絕招 in Traditional Chinese), with each hero’s actual ability name on the right.
+The HUD uses a lightning bolt, twin impact chevrons, and a nova starburst for these
+three slots, alongside energy costs. Available abilities
+light up in yellow, cyan, and violet; unaffordable abilities are dimmed.
 
 | Action | Controller | Keyboard 1 | Keyboard 2 |
 |---|---|---|---|

@@ -2237,6 +2237,43 @@ local function bar(x: number, y: number, w: number, h: number, v: number, c: Col
     end
 end
 
+-- Shared silhouettes keep ability slots recognizable across heroes and locales.
+local function skillIcon(slot: number, x: number, y: number, size: number, color: Color)
+    G.save()
+    G.translate(x, y)
+    G.scale(size / 24, size / 24)
+    if slot == 1 then
+        G.poly({ 2,-11, -8,2, -1,2, -3,11, 9,-3, 2,-3 }, color)
+    elseif slot == 2 then
+        G.poly({ -10,-9, -1,-2, -1,2, -10,9, -10,3, -5,0, -10,-3 }, color)
+        G.poly({ 0,-9, 10,-2, 10,2, 0,9, 0,3, 5,0, 0,-3 }, color)
+    else
+        G.poly({ 0,-12, 3,-5, 9,-9, 5,-3, 12,0, 5,3,
+            9,9, 3,5, 0,12, -3,5, -9,9, -5,3, -12,0,
+            -5,-3, -9,-9, -3,-5 }, color)
+        G.poly({ 0,-4, 3,0, 0,4, -3,0 }, G.INK)
+    end
+    G.restore()
+end
+
+local SKILL_COLORS = { G.hex(0xFFE14D), G.hex(0x7FD8FF), G.hex(0xD5AEFF) }
+local function skillBadge(s: Slot, slot: number, x: number, y: number, cost: number)
+    local ready = s.energy >= cost
+    local color = if ready then SKILL_COLORS[slot] else G.hex(0x746783)
+    G.rrect(x, y, 66, 24, 6, if ready then G.shade(color, -.82) else G.hex(0x241B32))
+    skillIcon(slot, x + 15, y + 12, 20, color)
+    G.text(tostring(cost), x + 32, y + 7, 10, color)
+end
+
+local function skillRow(g: Game, slot: number, label: string, name: string, x: number, y: number, w: number)
+    local color = SKILL_COLORS[slot]
+    skillIcon(slot, x + 22, y + 7, 12, color)
+    uiText(g, label, x + 34, y + 2, 10, color)
+    local localized = tr(g, name)
+    local size = math.min(12, 174 / math.max(1, G.textWidth(localized, 1)))
+    G.text(localized, x + w - 18, y, size, G.WHITE, 1)
+end
+
 local function drawHud(g: Game)
     for _, s in g.slots do
         local x = 12 + (s.idx - 1) * 317
@@ -2244,7 +2281,7 @@ local function drawHud(g: Game)
         local w = 305
         G.save()
         G.opacity(0.9)
-        G.rrect(x, y, w, 92, 12, G.hex(0x1C1330), 3)
+        G.rrect(x, y, w, 102, 12, G.hex(0x1C1330), 3)
         G.restore()
         G.rrect(x + 3, y + 3, w - 6, 6, 3, s.color)
         if s.dev == '' then
@@ -2276,9 +2313,9 @@ local function drawHud(g: Game)
                     ec = G.hex(0xFF4D5E)
                 end
                 bar(x + 78, y + 60, 150, 7, s.energy / 100, ec)
-                uiText(g, 'B 30', x + 78, y + 76, 9, if s.energy >= 30 then G.hex(0x7FD8FF) else G.hex(0x655974))
-                uiText(g, 'Y 40', x + 133, y + 76, 9, if s.energy >= 40 then G.hex(0x7FD8FF) else G.hex(0x655974))
-                uiText(g, 'RT 100', x + 190, y + 76, 9, if s.energy >= 100 then G.hex(0xFFE14D) else G.hex(0x655974))
+                skillBadge(s, 1, x + 78, y + 73, SPECIAL_COST)
+                skillBadge(s, 2, x + 150, y + 73, Powers.get(h.key, false).cost)
+                skillBadge(s, 3, x + 222, y + 73, Powers.get(h.key, true).cost)
                 uiText(g, `x{s.lives}`, x + w - 12, y + 57, 13, G.WHITE, 1)
             end
         end
@@ -2426,9 +2463,9 @@ local function drawSelect(g: Game)
             statBar(g, x + 30, y + 360, 'POWER', (hero.power - 0.8) / 0.5, G.hex(0xFF4D5E))
             statBar(g, x + 30, y + 380, 'SPEED', (hero.speed - 180) / 120, G.hex(0x3BD16F))
             statBar(g, x + 30, y + 400, 'HEALTH', (hero.hp - 80) / 70, G.hex(0x3A9BFF))
-            uiText(g, 'Skill 1', x + w / 2, y + 422, 17, G.hex(0xFFE14D), 0.5)
-            uiText(g, 'Skill 2', x + w / 2, y + 441, 17, G.hex(0x7FD8FF), 0.5)
-            uiText(g, 'Super', x + w / 2, y + 460, 17, G.hex(0xD5AEFF), 0.5)
+            skillRow(g, 1, 'Skill 1', hero.special, x, y + 423, w)
+            skillRow(g, 2, 'Skill 2', Powers.get(hero.key, false).name, x, y + 442, w)
+            skillRow(g, 3, 'Super', Powers.get(hero.key, true).name, x, y + 461, w)
             if s.locked then
                 G.save()
                 G.translate(x + w / 2, y + 262)
