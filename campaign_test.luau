@@ -127,6 +127,8 @@ return function(): Tests
             local app=game();encounter(app,9)
             local g=app.g;local h=g.slots[1].fighter
             g.fighters={h};g.pending={{kind='shock',delay=999,side=1}}
+            -- Isolate hazard damage from pickups/projectiles left by setup combat.
+            g.pickups={};g.shots={}
             g.waveT=3
             local z=Hazards.zone(3,1,5) :: Hazards.Zone
             h.x=g.camX+z.x;h.y=z.y;h.invuln=0;h.z=0;h.state='idle'

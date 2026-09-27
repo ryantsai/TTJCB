@@ -260,7 +260,7 @@ This injects a temporary save into the native preview; it does not write browser
 
 Titans react in speech bubbles when enemies appear, they take damage, health
 gets low, they use each power, pick up pizza, clear a wave or get knocked out.
-Three variants per situation keep their voices varied. Cooldowns and a two-speaker
+Fifteen variants per situation keep their voices varied. Cooldowns and a two-speaker
 limit keep co-op readable. Dialogue follows the selected language and includes
 short cartoon catchphrases plus original lines in each character's voice; see
 [the dialogue research](docs/character-remarks.md).

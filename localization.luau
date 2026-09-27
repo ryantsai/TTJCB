@@ -49,7 +49,7 @@ L.catalog = {
     ['SHADOW GRASP'] = '暗影束縛', ['GORILLA SMASH'] = '猩猩重擊',
     ['BIRDARANG STORM'] = '鳥飛鏢風暴', ['MEGA SONIC CANNON'] = '超級音波砲',
     ['STAR NOVA'] = '超新星爆發', ['SOUL SELF'] = '靈魂投射', ['T-REX RAMPAGE'] = '暴龍大暴走',
-    ['BIRDARANG!'] = '鳥飛鏢！', ['BOOYAH!'] = 'BOOYAH!', ['STARBOLTS!'] = '星光彈！',
+    ['BIRDARANG!'] = '鳥飛鏢！', ['BOOYAH!'] = '好耶！', ['STARBOLTS!'] = '星光彈！',
     ['AZARATH METRION ZINTHOS!'] = '天地萬物聽我命令！', ['RHINO TIME, DUDE!'] = '犀牛出動啦！',
     ['POW!'] = '砰！', ['BAM!'] = '碰！', ['WHAM!'] = '咚！', ['KAPOW!'] = '轟！',
     ['THWACK!'] = '啪！', ['BOOM!'] = '轟隆！', ['BLOCK'] = '格擋', ['PIZZA!'] = '披薩！',

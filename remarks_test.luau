@@ -51,7 +51,14 @@ return function(): Tests
         test.case('every Titan has localized variants for every speech event without immediate repeats',function(expect)
             for kind,bank in R.lines do
                 for event in R.priority do
-                    expect(#bank[event]).greaterThanOrEqual(3)
+                    expect(#bank[event]).is(15)
+                    local english, chinese = {}, {}
+                    for _, pair in bank[event] do
+                        expect(english[pair[1]] == nil).is(true)
+                        expect(chinese[pair[2]] == nil).is(true)
+                        expect(L.text('zh-TW', pair[1])).is(pair[2])
+                        english[pair[1]], chinese[pair[2]] = true, true
+                    end
                     local voice=R.new(743)
                     local last=''
                     local seen={}
@@ -67,6 +74,10 @@ return function(): Tests
                     expect(variants).greaterThan(1)
                 end
             end
+        end)
+        test.case('Cyborg celebrates in Taiwan Chinese',function(expect)
+            expect(L.text('zh-TW','BOOYAH!')).is('好耶！')
+            expect(L.text('en','BOOYAH!')).is('BOOYAH!')
         end)
         test.case('urgent speech interrupts chatter while repeated hits and weaker events are throttled',function(expect)
             local voice=R.new(18)

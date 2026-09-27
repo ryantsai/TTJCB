@@ -7,11 +7,13 @@ checked-in WOFF2 is sufficient. Requires fonttools[woff] (including brotli).
 import argparse
 import hashlib
 import json
+from io import BytesIO
 import re
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from fontTools import subset
 from fontTools.pens.basePen import BasePen
 from fontTools.ttLib import TTFont
 
@@ -20,8 +22,8 @@ ASSETS = ROOT / 'assets' / 'fonts'
 FONT = ASSETS / 'noto-sans-tc-700.woff2'
 
 
-def fetch(url):
-    request = Request(url, headers={'User-Agent': 'Mozilla/5.0 AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36'})
+def fetch(url, user_agent='Mozilla/5.0 AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36'):
+    request = Request(url, headers={'User-Agent': user_agent})
     with urlopen(request, timeout=45) as response:
         return response.read()
 
@@ -69,10 +71,31 @@ def main():
         css_url = 'https://fonts.googleapis.com/css2?' + urlencode({
             'family': 'Noto Sans TC:wght@700', 'display': 'swap', 'text': chars})
         css = fetch(css_url).decode()
-        url = re.search(r'url\((https://fonts.gstatic.com/[^)]+)\)', css).group(1)
-        data = fetch(url)
-        if data[:4] != b'wOF2':
-            raise ValueError('Google Fonts did not return WOFF2')
+        urls = re.findall(r'url\((https://fonts.gstatic.com/[^)]+)\)', css)
+        if len(urls) != 1:
+            # Large text requests can return many unicode-range faces. Request
+            # the complete legacy face, then subset locally instead of saving
+            # only the first (incomplete) WOFF2 fragment.
+            css = fetch(css_url, user_agent='Python-urllib/3').decode()
+            urls = re.findall(r'url\((https://fonts.gstatic.com/[^)]+)\)', css)
+        if len(urls) != 1:
+            raise ValueError('Expected a single complete font face')
+        url = urls[0]
+        downloaded = fetch(url)
+        downloaded_font = TTFont(BytesIO(downloaded))
+        missing = [c for c in chars if ord(c) not in downloaded_font.getBestCmap()]
+        if missing:
+            raise ValueError(f'Downloaded font lacks requested glyphs: {missing}')
+        if downloaded[:4] == b'wOF2':
+            data = downloaded
+        else:
+            subsetter = subset.Subsetter()
+            subsetter.populate(text=chars)
+            subsetter.subset(downloaded_font)
+            downloaded_font.flavor = 'woff2'
+            buffer = BytesIO()
+            downloaded_font.save(buffer)
+            data = buffer.getvalue()
         FONT.write_bytes(data)
         (ASSETS / 'OFL-NotoSansTC.txt').write_bytes(fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/OFL.txt'))
         (ASSETS / 'noto-sans-tc-source.json').write_text(json.dumps({

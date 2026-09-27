@@ -1,7 +1,7 @@
 # Character remarks
 
-Research checked September 27, 2026 for **Teen Titans Go!**. The game has 135
-event/character variants: three choices for each of five Titans across encounter,
+Research checked September 27, 2026 for **Teen Titans Go!**. The game has 675
+event/character variants: fifteen choices for each of five Titans across encounter,
 hurt, low health, primary special, secondary, ultimate, wave victory, pizza and
 knockout. Reused catchphrases mean this is not a count of unique sentences.
 
@@ -17,8 +17,8 @@ knockout. Reused catchphrases mean this is not a count of unique sentences.
   lines **“Titans, GO!”** (Robin) and **“Finally.”** (Raven) are retained.
 - [Double Trouble transcript](https://teen-titans-go.fandom.com/wiki/Double_Trouble/Transcript)
   records Cyborg's **“Boo-yah!”**, Raven's **“Azarath Metrion Zinthos!”**,
-  Beast Boy's casual slang, and Starfire's unusual word choices. The game uses
-  BOOYAH as its existing display spelling.
+  Beast Boy's casual slang, and Starfire's unusual word choices. The English game uses
+  BOOYAH as its display spelling; zh-TW uses **「好耶！」**, as requested.
 - [Teen Titans Go! vs. Teen Titans transcript](https://teentitans.fandom.com/wiki/Teen_Titans_Go%21_vs._Teen_Titans/Transcript)
   distinguishes the Go versions from their 2003 counterparts. Starfire's
   **“I am the victorious.”** is used for a wave clear. Only the Go characters'
@@ -31,6 +31,14 @@ None of the lines are song lyrics. Taiwan translations are authored for this
 game; they are not presented as quotations from the Taiwan dub. Raven's spell
 uses the project's researched Taiwan rendering, documented in
 [localization-zh-TW.md](localization-zh-TW.md).
+
+The expanded banks add 540 original bilingual entries (12 per situation per
+Titan), for 135 entries per character. They follow the same voice direction:
+Robin focuses on plans and leadership; Cyborg on machines, music, food and
+team spirit; Starfire on earnest friendship and formal alien phrasing; Raven on
+deadpan understatement; Beast Boy on animal jokes, games and vegetarian snacks.
+These additions are original game lines, not newly discovered episode quotes.
+Cyborg’s BOOYAH variants use 好耶 consistently in Traditional Chinese.
 
 ## Behavior and display
 

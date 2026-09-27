@@ -30,8 +30,9 @@ stage names and ability names are official episode terminology.
 Other stage subtitles, robot classes and moves are project-authored translations:
 鋼鐵碼頭、咒術工廠、旋風棍、震地重擊、暗影束縛, etc. UI vocabulary uses
 台灣、玩家、控制器、鍵盤、關卡、生命、能量、返回、暫停、必殺技、披薩.
-Physical button labels (START, BACK, X, A, B, Y, RT, LB), P1–P4 and the vocal
-catchphrase BOOYAH remain recognizable in either language.
+Physical button labels (START, BACK, X, A, B, Y, RT, LB) and P1–P4 remain
+recognizable in either language. Cyborg’s catchphrase BOOYAH is rendered as
+「好耶！」in Traditional Chinese.
 
 ## Font and rendering
 
