@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="en">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Teen Titans: Jump City Brawl</title>
 <style>
-@font-face{font-family:"Noto Sans TC";src:url("./noto-sans-tc.woff2?v=a47eb51baee9") format("woff2");font-weight:700;font-display:swap}
-@font-face{font-family:"Noto Sans JP";src:url("./noto-sans-jp.woff2?v=a47eb51baee9") format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Noto Sans TC";src:url("./noto-sans-tc.woff2?v=e9d7ac3615ea") format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Noto Sans JP";src:url("./noto-sans-jp.woff2?v=e9d7ac3615ea") format("woff2");font-weight:700;font-display:swap}
 html:lang(ja),html:lang(ja) body{font-family:"Noto Sans JP",system-ui,sans-serif}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#140c24;color:#f5f0df;font-family:"Noto Sans TC",system-ui,sans-serif}
 canvas{display:block;width:100%;height:100%;touch-action:none}
@@ -19,6 +19,21 @@ canvas:focus-visible,#fullscreen:focus-visible{outline:2px solid #7fd8ff;outline
 #fullscreen[aria-pressed="true"] .exit-icon{display:block}
 #notice{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:32px;background:#140c24}
 #notice[hidden]{display:none}
+#touch-gamepad{position:fixed;z-index:3;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none}
+#touch-gamepad[hidden]{display:none}
+#touch-gamepad button,.touch-stick{pointer-events:auto;touch-action:none;-webkit-touch-callout:none}
+#touch-gamepad button{color:#fff;background:rgba(20,12,36,.72);border:2px solid #a2b4cb;border-radius:50%;width:58px;height:58px;font:bold 17px system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px}
+#touch-gamepad small{font:10px system-ui;line-height:1.1}
+#touch-gamepad button.held{background:#415f85;border-color:#fff;transform:scale(.94)}
+.touch-stick{position:absolute;left:max(18px,env(safe-area-inset-left));bottom:max(20px,env(safe-area-inset-bottom));width:132px;height:132px;border:2px solid #a2b4cb88;border-radius:50%;background:rgba(20,12,36,.5);display:grid;place-items:center;color:#ffffff66;font:28px system-ui}
+.touch-knob{position:absolute;width:50px;height:50px;border:2px solid #d3e9ff;border-radius:50%;background:#58789b99;pointer-events:none}
+.touch-actions{position:absolute;right:max(16px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(3,58px);gap:8px}
+#touch-gamepad [data-bit="0"]{border-color:#70e398}#touch-gamepad [data-bit="2"]{border-color:#78bfff}#touch-gamepad [data-bit="1"]{border-color:#ff8689}#touch-gamepad [data-bit="3"]{border-color:#ffe07b}#touch-gamepad [data-bit="7"]{border-color:#d299ff}
+.touch-menu{position:absolute;bottom:max(20px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:8px}
+#touch-gamepad .touch-menu button{width:52px;height:44px;border-radius:12px;font-size:13px}
+.touch-controls #fullscreen{bottom:auto;top:max(12px,env(safe-area-inset-top));right:auto;left:50%;transform:translateX(-50%)}
+@media(max-width:600px){.touch-menu{bottom:170px}.touch-actions{gap:5px;grid-template-columns:repeat(3,52px)}#touch-gamepad .touch-actions button{width:52px;height:52px}.touch-stick{width:116px;height:116px;left:12px}}
+@media(orientation:portrait){body.touch-controls canvas{height:calc(100% - 210px)}body.touch-controls{padding-top:env(safe-area-inset-top)}}
 </style>
 <canvas id="game" tabindex="0" aria-label="Teen Titans: Jump City Brawl"></canvas>
 <button id="fullscreen" type="button" aria-label="Enter fullscreen" aria-pressed="false" title="Fullscreen" hidden>
@@ -27,6 +42,20 @@ canvas:focus-visible,#fullscreen:focus-visible{outline:2px solid #7fd8ff;outline
     <path class="exit-icon" d="M3 9h6V3m12 6h-6V3M3 15h6v6m12-6h-6v6"/>
   </svg>
 </button>
+<div id="touch-gamepad" role="group" aria-label="Touch controls" data-touch-label="controls" hidden>
+  <div class="touch-stick" role="group" aria-label="Move" data-touch-label="move"><span aria-hidden="true">✥</span><span class="touch-knob"></span></div>
+  <div class="touch-menu">
+    <button type="button" data-bit="8" data-touch-label="back" aria-pressed="false">‹<small>Back</small></button>
+    <button type="button" data-bit="9" data-touch-label="start" aria-pressed="false">☰<small>Start</small></button>
+  </div>
+  <div class="touch-actions">
+    <button type="button" data-bit="1" data-touch-label="skill1" aria-pressed="false">B<small>Skill 1</small></button>
+    <button type="button" data-bit="3" data-touch-label="skill2" aria-pressed="false">Y<small>Skill 2</small></button>
+    <button type="button" data-bit="7" data-touch-label="super" aria-pressed="false">RT<small>Super</small></button>
+    <button type="button" data-bit="2" data-touch-label="attack" aria-pressed="false">X<small>Attack</small></button>
+    <button type="button" data-bit="0" data-touch-label="jump" aria-pressed="false">A<small>Jump</small></button>
+  </div>
+</div>
 <div id="notice" role="status">Loading…</div>
-<script type="module" src="./game.js?v=a47eb51baee9"></script>
+<script type="module" src="./game.js?v=e9d7ac3615ea"></script>
 </html>

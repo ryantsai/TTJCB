@@ -1,5 +1,6 @@
 export const hostStrings = {
   en: {
+    touch: { controls: 'Touch controls', move: 'Move', back: 'Back', start: 'Start', skill1: 'Skill 1', skill2: 'Skill 2', super: 'Super', attack: 'Attack', jump: 'Jump' },
     title: 'Teen Titans: Jump City Brawl', loading: 'Loading…',
     loadError: 'The game could not load. Please try again.',
     progressError: 'Unable to load game progress. Please reload and try again.',
@@ -7,6 +8,7 @@ export const hostStrings = {
     unavailable: 'Fullscreen is unavailable in this browser.',
   },
   ja: {
+    touch: { controls: 'タッチ操作', move: '移動', back: '戻る', start: '開始/停止', skill1: 'スキル1', skill2: 'スキル2', super: '必殺技', attack: '攻撃', jump: 'ジャンプ' },
     title: 'ティーン・タイタンズ：ジャンプシティ大乱闘', loading: '読み込み中…',
     loadError: 'ゲームを読み込めませんでした。もう一度お試しください。',
     progressError: '進行状況を読み込めませんでした。再読み込みしてお試しください。',
@@ -14,6 +16,7 @@ export const hostStrings = {
     unavailable: 'このブラウザーでは全画面表示を利用できません。',
   },
   'zh-TW': {
+    touch: { controls: '觸控操作', move: '移動', back: '返回', start: '開始/暫停', skill1: '招式1', skill2: '招式2', super: '絕招', attack: '攻擊', jump: '跳躍' },
     title: '少年悍將：雀躍城大亂鬥', loading: '載入中……',
     loadError: '遊戲無法載入，請再試一次。',
     progressError: '無法載入遊戲進度，請重新整理後再試一次。',

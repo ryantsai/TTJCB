@@ -2,6 +2,8 @@ import { Rive, Layout, Fit, Alignment, RuntimeLoader } from '@rive-app/webgl2';
 import { connectProgress } from './progress-storage.mjs';
 import { connectLanguage, initialLanguage } from './language-preference.mjs';
 
+import { connectTouchGamepad, TOUCH_PAD_ID } from './touch-gamepad.mjs';
+
 import { hostStrings } from './host-strings.mjs';
 
 const releaseVersion = new URL(import.meta.url).searchParams.get('v');
@@ -10,6 +12,7 @@ RuntimeLoader.setWasmUrl(assetUrl('./rive.wasm'));
 const canvas = document.querySelector('#game');
 const notice = document.querySelector('#notice');
 const fullscreen = document.querySelector('#fullscreen');
+const touch = connectTouchGamepad(document.querySelector('#touch-gamepad'), canvas);
 let locale = initialLanguage();
 let noticeKey = 'loading';
 let fullscreenUnavailable = false;
@@ -20,6 +23,12 @@ function updateHostLanguage(next = locale) {
   document.title = strings.title;
   canvas.setAttribute('aria-label', strings.title);
   notice.textContent = strings[noticeKey];
+  for (const element of document.querySelectorAll('[data-touch-label]')) {
+    const label = strings.touch[element.dataset.touchLabel];
+    element.setAttribute('aria-label', label);
+    const caption = element.querySelector('small');
+    if (caption) caption.textContent = label;
+  }
   const active = Boolean(document.fullscreenElement);
   fullscreen.setAttribute('aria-label', active ? strings.exit : strings.enter);
   fullscreen.setAttribute('aria-pressed', String(active));
@@ -68,6 +77,7 @@ const game = new Rive({
       game.resizeDrawingSurfaceToCanvas();
       game.play('Game');
       notice.hidden = true;
+      touch.ready();
       fullscreen.hidden = !document.fullscreenEnabled;
       canvas.focus();
     } catch (error) { console.error(error); showNotice('progressError'); }
@@ -91,14 +101,17 @@ document.addEventListener('fullscreenchange', () => {
 function pollGamepads() {
   if (gamepadProperty) {
     const pads = document.hidden ? [] : Array.from(navigator.getGamepads?.() ?? []);
-    const snapshot = pads.filter(pad => pad?.connected && pad.mapping === 'standard').slice(0, 4).map(pad => {
+    const virtual = document.hidden ? null : touch.sample();
+    const records = pads.filter(pad => pad?.connected && pad.mapping === 'standard' && pad.index !== TOUCH_PAD_ID).slice(0, virtual ? 3 : 4).map(pad => {
       let mask = 0;
       for (let i = 0; i < Math.min(16, pad.buttons.length); i++) {
         if (pad.buttons[i].pressed || pad.buttons[i].value > 0.5) mask |= 1 << i;
       }
       const axis = value => Math.max(-1, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3);
       return `${pad.index},${axis(pad.axes[0])},${axis(pad.axes[1])},${mask}`;
-    }).join(';');
+    });
+    if (virtual) records.push(virtual);
+    const snapshot = records.join(';');
     if (snapshot !== lastPads) { gamepadProperty.value = snapshot; lastPads = snapshot; }
   }
   requestAnimationFrame(pollGamepads);

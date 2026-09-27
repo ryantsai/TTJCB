@@ -74,6 +74,21 @@ light up in yellow, cyan, and violet; unaffordable abilities are dimmed.
 | Join / pause / continue | Start | Enter | Right Shift or numpad Enter |
 | Back (menus) / quit (while paused) | B / Back | Esc | Right Ctrl |
 
+### Touchscreen controls
+
+The browser version automatically shows a virtual gamepad on phones, tablets,
+and touch-capable computers. Drag the left stick to move; release and flick it
+again in the same direction to dash. Use X to attack, A to jump/confirm,
+B and Y for skills, and RT for the super. Hold A for a higher jump. Movement
+and multiple action buttons work together with separate fingers.
+
+Tap Start to begin, join, or pause; Back returns from menus or quits while paused.
+The virtual controller occupies one player slot and supports up to three physical
+controllers alongside it. Button captions follow the game's language. Portrait
+mode reserves space below the game for controls; landscape uses an overlay.
+Switching apps, cancelling a touch, or rotating the screen releases held controls.
+Touch controls belong to the browser host and do not appear in the native preview.
+
 ## The Titans
 
 | Titan | Normal combo (X / J) | Special |

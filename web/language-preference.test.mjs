@@ -137,9 +137,17 @@ test('Japanese detection, explicit choice, reload, and cross-tab synchronization
 test('every host locale translates every visible and accessible browser message', () => {
   for (const locale of ['zh-TW', 'ja']) {
     assert.deepEqual(Object.keys(hostStrings[locale]).sort(), Object.keys(hostStrings.en).sort());
-    for (const [key, english] of Object.entries(hostStrings.en)) {
-      assert.ok(hostStrings[locale][key].length > 0);
-      assert.notEqual(hostStrings[locale][key], english);
+    function check(translated, english) {
+      assert.deepEqual(Object.keys(translated).sort(), Object.keys(english).sort());
+      for (const [key, value] of Object.entries(english)) {
+        if (typeof value === 'object') check(translated[key], value);
+        else {
+          assert.equal(typeof translated[key], 'string');
+          assert.ok(translated[key].length > 0);
+          assert.notEqual(translated[key], value);
+        }
+      }
     }
+    check(hostStrings[locale], hostStrings.en);
   }
 });
