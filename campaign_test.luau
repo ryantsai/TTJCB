@@ -47,7 +47,7 @@ local function encounter(app: any, index: number)
     g.cp=index
     g.lockX=-1
     g.camX=C.checkpoints[index].x
-    g.hitstop=0
+    g.slots[1].fighter.hitPause=0
     g.slots[1].fighter.x=g.camX+600
     step(app,1)
     g.waveT=100

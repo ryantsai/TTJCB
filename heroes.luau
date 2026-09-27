@@ -1385,7 +1385,17 @@ end
 
 -- Public -----------------------------------------------------------------------------
 
+-- Authored drawing units, including the resting hover offset. World/UI callers
+-- multiply by modelScale once, uniformly, so head/body proportions stay intact.
 HX.HEIGHTS = { robin = 130, cyborg = 143, starfire = 149, raven = 124, beast = 115 } :: { [string]: number }
+
+-- Relative stature from standing Teen Titans Go! references, not comic-book
+-- heights. See docs/art-direction/character-heights.md for the visual comparison.
+local MODEL_SCALES = { robin = 1, cyborg = 1.17, starfire = .95, raven = .86, beast = .84 } :: { [string]: number }
+
+function HX.modelScale(kind: string): number
+    return MODEL_SCALES[kind] or 1
+end
 
 -- Special-projectile attachment points use the same posed hands as the art.
 -- Coordinates are local to the unmirrored fighter, with negative y upward.

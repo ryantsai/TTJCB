@@ -483,38 +483,71 @@ function G.textWidth(s: string, size: number): number
     return math.max(0, width - trailing) * size / 6
 end
 
+type TextRun = { ascii: Path?, tc: Path?, width: number, chinese: boolean }
+-- Keep whole text runs immutable so Rive can reuse their geometry. A bounded
+-- cache also prevents changing scores from retaining paths for an entire game.
+local textRuns: { [string]: TextRun } = {}
+local textKeys: { string } = {}
+local textCursor = 1
+local TEXT_CACHE_LIMIT = 256
+
+local function textRun(s: string): TextRun
+    local cached = textRuns[s]
+    if cached then return cached end
+    local run: TextRun = { ascii=nil, tc=nil, width=G.textWidth(s,6), chinese=#s~=utf8.len(s) }
+    local cursor = 0
+    for _,code in utf8.codes(string.upper(s)) do
+        local isTC = code >= 128
+        local glyph = if isTC then tcPath(code) else glyphPaths[string.char(code)]
+        if isTC and not glyph then glyph=glyphPaths['?'] end
+        if glyph then
+            if isTC then
+                if not run.tc then run.tc=Path.new() end
+                (run.tc :: Path):add(glyph,Mat2D.withTranslation(cursor,0))
+            else
+                if not run.ascii then run.ascii=Path.new() end
+                (run.ascii :: Path):add(glyph,Mat2D.withTranslation(cursor,0))
+            end
+        end
+        cursor += if isTC then 6.3 else font.ADVANCE
+    end
+    if #textKeys < TEXT_CACHE_LIMIT then
+        table.insert(textKeys,s)
+    else
+        textRuns[textKeys[textCursor]]=nil
+        textKeys[textCursor]=s
+        textCursor=textCursor%TEXT_CACHE_LIMIT+1
+    end
+    textRuns[s]=run
+    return run
+end
+
 -- Draw `s` with its top edge at y. align: 0 left, 0.5 centre, 1 right.
 -- Letters are italic and inked, comic-book style.
 function G.text(s: string, x: number, y: number, size: number, c: Color, align: number?, ink: Color?)
     local sc = size / 6
-    local w = G.textWidth(s, size)
-    local x0 = x - w * (align or 0)
+    local run = textRun(s)
+    local x0 = x - run.width * sc * (align or 0)
     local th = 1.15
-    local chinese = #s ~= utf8.len(s)
     R:save()
-    R:transform(Mat2D.values(sc, 0, if chinese then 0 else -sc * 0.16, sc, x0 + sc * 0.5, y))
-    local up = string.upper(s)
-    for pass = 1, 2 do
-        local cursor = 0
-        for _, code in utf8.codes(up) do
-            local isTC = code >= 128
-            local g = if isTC then tcPath(code) else glyphPaths[string.char(code)]
-            if isTC and not g then g = glyphPaths['?'] end
-            if g then
-                R:save()
-                R:transform(Mat2D.withTranslation(cursor, 0))
-                if isTC and pass == 2 then
-                    fillPaint.color = c
-                    R:drawPath(g, fillPaint)
-                else
-                    strokePaint.color = if pass == 1 then ink or G.INK else c
-                    strokePaint.thickness = if isTC then math.min(.45, 4 / sc) elseif pass == 1 then th + 5 / sc else th
-                    R:drawPath(g, strokePaint)
-                end
-                R:restore()
-            end
-            cursor += if isTC then 6.3 else font.ADVANCE
-        end
+    R:transform(Mat2D.values(sc, 0, if run.chinese then 0 else -sc * 0.16, sc, x0 + sc * 0.5, y))
+    strokePaint.color = ink or G.INK
+    if run.ascii then
+        strokePaint.thickness=th+5/sc
+        R:drawPath(run.ascii,strokePaint)
+    end
+    if run.tc then
+        strokePaint.thickness=math.min(.45,4/sc)
+        R:drawPath(run.tc,strokePaint)
+    end
+    if run.ascii then
+        strokePaint.color=c
+        strokePaint.thickness=th
+        R:drawPath(run.ascii,strokePaint)
+    end
+    if run.tc then
+        fillPaint.color=c
+        R:drawPath(run.tc,fillPaint)
     end
     R:restore()
 end
@@ -522,25 +555,16 @@ end
 -- Plain upright text with no ink pass, for tiny details like emblems.
 function G.label(s: string, x: number, y: number, size: number, c: Color, align: number?)
     local sc = size / 6
-    local x0 = x - G.textWidth(s, size) * (align or 0)
+    local run = textRun(s)
+    local x0 = x - run.width * sc * (align or 0)
     R:save()
     R:transform(Mat2D.withScaleAndTranslation(sc, sc, x0, y))
     strokePaint.color = c
     strokePaint.thickness = 1.3
-    local up = string.upper(s)
-    local cursor = 0
-    for _, code in utf8.codes(up) do
-        local isTC = code >= 128
-        local g = if isTC then tcPath(code) else glyphPaths[string.char(code)]
-        if isTC and not g then g = glyphPaths['?'] end
-        if g then
-            R:save()
-            R:transform(Mat2D.withTranslation(cursor, 0))
-            fillPaint.color = c
-            R:drawPath(g, if isTC then fillPaint else strokePaint)
-            R:restore()
-        end
-        cursor += if isTC then 6.3 else font.ADVANCE
+    if run.ascii then R:drawPath(run.ascii,strokePaint) end
+    if run.tc then
+        fillPaint.color=c
+        R:drawPath(run.tc,fillPaint)
     end
     R:restore()
 end

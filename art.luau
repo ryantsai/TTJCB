@@ -17,6 +17,7 @@ export type Pose = P.Pose
 
 A.newPose = P.new
 A.projectileOrigin = HX.projectileOrigin
+A.modelScale = HX.modelScale
 
 -- Villains -------------------------------------------------------------------------
 

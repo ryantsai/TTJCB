@@ -167,7 +167,7 @@ return function(): Tests
                 g.cp = index
                 g.lockX = -1
                 g.camX = cp.x
-                g.hitstop = 0
+                hero.hitPause = 0
                 hero.x = g.camX + 600
                 step(app, 1)
                 g.waveT = 100

@@ -110,6 +110,8 @@ source research and font regeneration details are in
 | `campaign_test.luau` | campaign progression, new enemy behavior and co-op regressions |
 | `game.luau` | the game: input, modes, combat, AI, waves, camera, HUD |
 | `movement_test.luau` | regression tests using the game's input and update callbacks |
+| `coop_test.luau` | independent co-op timing and input buffering during impacts |
+| `render_test.luau` | immutable text geometry reuse and bounded cache eviction |
 | `heroes.luau` | the five Titans, drawn in the Teen Titans Go! style |
 | `armature.luau` | side-view arm reach and consistent elbow bend for gameplay |
 | `profiles.luau` | three-quarter gameplay faces and trailing hair; opponent-facing gaze in either direction |
@@ -123,9 +125,29 @@ source research and font regeneration details are in
 | `font.luau` | the stroke font, since Rive scripts have no text API |
 | `localization.luau` | Taiwan translations and named text templates |
 | `localization_test.luau` | language input, glyph coverage and translated campaign regressions |
+| `remarks_catalog.luau` | researched character voices and paired English/Taiwan dialogue |
+| `remarks.luau` | random variants, repetition control and speech priorities |
+| `speech.luau` | readable comic bubbles, wrapping and co-op placement |
+| `remarks_test.luau` | contextual dialogue, cooldown, localization and layout checks |
 | `tc_glyphs.luau` | generated Noto Sans TC vector glyphs from the bundled WOFF2 |
+| `tools/bench_coop.py` | repeatable native Rive stress scene with four heroes and twelve enemies |
 
 To test a later wave, set `START_CHECKPOINT` near the top of `game.luau`.
+
+Titans react in speech bubbles when enemies appear, they take damage, health
+gets low, they use each power, pick up pizza, clear a wave or get knocked out.
+Three variants per situation keep their voices varied. Cooldowns and a two-speaker
+limit keep co-op readable. Dialogue follows the selected language and includes
+short cartoon catchphrases plus original lines in each character's voice; see
+[the dialogue research](docs/character-remarks.md).
+
+Hits briefly hold only the affected actors (25 ms for light hits, 50 ms for
+knockdowns). Teammates, projectiles, camera and wave logic continue normally,
+and combat taps are buffered through the local hold. Ranged hits never hold
+the projectile's owner. Text is batched into immutable native Rive paths with
+a bounded cache, retaining Noto Sans TC and the comic outlines. Run
+`python3 tools/bench_coop.py --locale zh-TW` for the native rendering workload;
+see [the performance notes](docs/co-op-performance.md) for measurements and scope.
 
 ### Movement feel
 

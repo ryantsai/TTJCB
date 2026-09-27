@@ -54,6 +54,13 @@ L.catalog = {
     ['TOWER GYM'] = '高塔健身房', ['DONUTS'] = '甜甜圈',
 } :: { [string]: string }
 
+-- Banter is authored as paired translations so variants cannot drift apart.
+for _, character in require('remarks_catalog') do
+    for _, lines in character do
+        for _, line in lines do L.catalog[line[1]] = line[2] end
+    end
+end
+
 function L.text(locale: Locale, source: string): string
     return if locale == 'zh-TW' then L.catalog[source] or source else source
 end

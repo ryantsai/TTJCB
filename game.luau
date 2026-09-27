@@ -17,6 +17,8 @@ local Attacks = require('attacks')
 local Powers = require('powers')
 local Campaign = require('campaign')
 local L = require('localization')
+local Remarks = require('remarks')
+local Speech = require('speech')
 
 local W = G.W
 local H = G.H
@@ -45,30 +47,29 @@ type Hero = {
     jump: number,
     float: number,
     color: Color,
-    shout: string,
     special: string,
 }
 
 local HEROES: { Hero } = {
     {
         key = 'robin', name = 'ROBIN', hp = 110, speed = 255, power = 1.0, jump = 700, float = 1,
-        color = G.hex(0xD7263D), shout = 'BIRDARANG!', special = 'BIRDARANG',
+        color = G.hex(0xD7263D), special = 'BIRDARANG',
     },
     {
         key = 'cyborg', name = 'CYBORG', hp = 140, speed = 210, power = 1.25, jump = 640, float = 1,
-        color = G.hex(0x2F6FD6), shout = 'BOOYAH!', special = 'SONIC CANNON',
+        color = G.hex(0x2F6FD6), special = 'SONIC CANNON',
     },
     {
         key = 'starfire', name = 'STARFIRE', hp = 100, speed = 245, power = 1.05, jump = 640, float = 0.65,
-        color = G.hex(0xF4A259), shout = 'STARBOLTS!', special = 'STARBOLT VOLLEY',
+        color = G.hex(0xF4A259), special = 'STARBOLT VOLLEY',
     },
     {
         key = 'raven', name = 'RAVEN', hp = 95, speed = 235, power = 1.1, jump = 620, float = 0.65,
-        color = G.hex(0x6A4CC9), shout = 'AZARATH METRION ZINTHOS!', special = 'DARK BURST',
+        color = G.hex(0x6A4CC9), special = 'DARK BURST',
     },
     {
         key = 'beast', name = 'BEAST BOY', hp = 105, speed = 290, power = 0.95, jump = 740, float = 1,
-        color = G.hex(0x6DBB45), shout = 'RHINO TIME, DUDE!', special = 'RHINO CHARGE',
+        color = G.hex(0x6DBB45), special = 'RHINO CHARGE',
     },
 }
 
@@ -131,6 +132,9 @@ type Fighter = {
     combo: number,
     queued: boolean,
     hit: { [number]: boolean },
+    hitPause: number,
+    stepDt: number,
+    buffered: { [string]: boolean },
     invuln: number,
     flash: number,
     speed: number,
@@ -159,6 +163,7 @@ type Fighter = {
     entering: boolean,
     hitT: number,
     move: number,
+    voice: Remarks.Voice,
 }
 
 type Slot = {
@@ -228,7 +233,6 @@ type Game = {
     waveT: number,
     goT: number,
     shake: number,
-    hitstop: number,
     paused: boolean,
     nextId: number,
     continueT: number,
@@ -287,7 +291,7 @@ local function newGame(): Game
         locale = 'en', languageHover = 0,
         mode = 'title', stage = 1, healthPlayers = 1, wavePlayers = 1, modeT = 0, t = 0, devs = {}, slots = slots, fighters = {}, shots = {},
         fx = {}, pickups = {}, camX = 0, lockX = -1, cp = 1, pending = {}, waveT = 0, goT = 0,
-        shake = 0, hitstop = 0, paused = false, nextId = 1, continueT = 0, banner = '',
+        shake = 0, paused = false, nextId = 1, continueT = 0, banner = '',
         bannerSub = '', bannerT = 0, selectT = -1, boss = nil,
     }
 end
@@ -368,6 +372,31 @@ local function canBeHit(f: Fighter): boolean
     return alive(f) and f.invuln <= 0 and f.state ~= 'down' and f.state ~= 'getup' and f.state ~= 'enter'
 end
 
+-- A readable conversation budget in co-op: two speakers at once. Important
+-- reactions can displace lesser chatter, but never interrupt an urgent warning.
+local function remark(g: Game, f: Fighter, event: string): boolean
+    if f.team~=1 or f.removed then return false end
+    local active, weakest = 0, nil :: Fighter?
+    for _,other in g.fighters do
+        if other~=f and other.team==1 and not other.removed and other.voice.time>0 then
+            active+=1
+            if not weakest or other.voice.priority<weakest.voice.priority then weakest=other end
+        end
+    end
+    local priority=Remarks.priority[event] or 0
+    if active>=2 and (not weakest or priority<=weakest.voice.priority) then return false end
+    if not Remarks.offer(f.voice,f.kind,event) then return false end
+    if active>=2 and weakest then weakest.voice.time=0 end
+    return true
+end
+
+local function fighterHeight(f: Fighter): number
+    local height=if f.kind=='beast' and f.state=='ultimate' then 185
+        elseif f.kind=='beast' and f.state=='secondary' then 145
+        else A.height(f.kind)
+    return height*f.scale
+end
+
 -- Fighters -------------------------------------------------------------------------
 
 local function newFighter(g: Game, kind: string, team: number, x: number, y: number): Fighter
@@ -375,9 +404,11 @@ local function newFighter(g: Game, kind: string, team: number, x: number, y: num
         id = g.nextId, team = team, kind = kind, hero = 0, slot = 0, x = x, y = y, z = 0,
         vx = 0, vy = 0, vz = 0, facing = 1, hp = 50, maxHp = 50, state = 'idle', st = 0,
         combo = 0, queued = false, hit = {}, invuln = 0, flash = 0, speed = 150, power = 1,
+        hitPause = 0, stepDt = 0, buffered = {},
         jump = 600, tapDir = '', tapTime = 0, dashX = 0, dashY = 0, jumpBuffer = 0, jumpCut = false, airTime = 0, landing = 0, float = 1, scale = 1, radius = 22, reach = 64, dmg = 8, windup = 0.35,
         pose = A.newPose(), ai = rnd(0.5, 2), cd = rnd(0.6, 1.6), armor = 0, removed = false,
         sp = 0, entering = false, hitT = 99, move = 0,
+        voice = Remarks.new(g.nextId*7919+math.floor(g.t*1000)),
     }
     g.nextId += 1
     local e = ENEMIES[kind]
@@ -407,7 +438,7 @@ local function spawnHero(g: Game, s: Slot, x: number, y: number)
     f.power = h.power
     f.jump = h.jump
     f.float = h.float
-    f.scale = HERO_SCALE
+    f.scale = HERO_SCALE * A.modelScale(h.key)
     f.radius = if h.key == 'cyborg' then 34 else 29
     f.reach = if h.key == 'cyborg' then 96 else 86
     f.z = 520 + s.idx * 40
@@ -418,7 +449,7 @@ end
 
 -- Combat -----------------------------------------------------------------------------
 
-local function damage(g: Game, att: Fighter, d: Fighter, dmg: number, kbx: number, knock: boolean, launch: number)
+local function damage(g: Game, att: Fighter, d: Fighter, dmg: number, kbx: number, knock: boolean, launch: number, projectile: boolean?)
     -- A guard blocks frontal light hits; flank, jump over it, or use a knockdown.
     if d.kind == 'shield' and not knock and d.state ~= 'hurt' and d.state ~= 'down'
         and (att.x - d.x) * d.facing > 0 and att.z < 35 then
@@ -429,9 +460,22 @@ local function damage(g: Game, att: Fighter, d: Fighter, dmg: number, kbx: numbe
     d.hp -= dmg
     d.flash = 0.14
     d.hitT = 0
+    if d.team==1 then
+        if d.hp<=0 then remark(g,d,'down')
+        elseif d.hp<=d.maxHp*.25 and not d.voice.danger then
+            if remark(g,d,'low_health') then d.voice.danger=true end
+        else remark(g,d,'hurt') end
+    end
     local top = A.height(d.kind) * d.scale
     addFx(g, 'spark', d.x - sign(kbx) * d.radius * 0.4, d.y + 1, d.z + top * 0.55, 0.28, '', G.hex(0xFFE14D), 1)
-    g.hitstop = math.max(g.hitstop, if knock then 0.08 else 0.045)
+    -- Hit emphasis belongs to the two actors, never the whole co-op simulation.
+    -- Keep ranged owners moving when a projectile connects across the street.
+    local pause = if knock or d.hp <= 0 then .05 else .025
+    d.hitPause = math.max(d.hitPause, pause)
+    if not projectile and (att.state == 'attack' or att.state == 'jumpatk'
+        or att.state == 'dashatk' or att.state == 'eatk') then
+        att.hitPause = math.max(att.hitPause, pause)
+    end
 
     if att.slot > 0 then
         local s = g.slots[att.slot]
@@ -513,8 +557,7 @@ local function startSpecial(g: Game, f: Fighter, s: Slot)
     f.vx = 0
     f.vy = 0
     f.invuln = math.max(f.invuln, 0.4)
-    local h = HEROES[f.hero]
-    addFx(g, 'word', f.x, f.y, A.height(f.kind) * f.scale + 40, 1.1, h.shout, h.color, if #h.shout > 14 then 20 else 28)
+    remark(g,f,'special')
 end
 
 local function fireShot(g: Game, f: Fighter, kind: string, speed: number, dmg: number, knock: boolean, life: number)
@@ -625,7 +668,7 @@ local function requestPower(g: Game, f: Fighter, s: Slot, dev: Device?): boolean
     f.queued = false
     f.vx, f.vy = 0, 0
     f.invuln = math.max(f.invuln, if ultimate then power.duration else .35)
-    addFx(g, 'word', f.x, f.y, (if f.kind == 'beast' then (if ultimate then 220 else 174) else A.height(f.kind) * f.scale) + 45, 1.2, power.name, HEROES[f.hero].color, 21)
+    remark(g,f,if ultimate then 'ultimate' else 'secondary')
     return true
 end
 
@@ -1109,7 +1152,7 @@ local function updateShots(g: Game, dt: number)
                 if d.team ~= s.owner.team and not s.hit[d.id] and canBeHit(d) then
                     if math.abs(d.x - s.x) < 26 + d.radius and math.abs(d.y - s.y) < 22 + d.radius * 0.3 and s.z > d.z and s.z < d.z + A.height(d.kind) * d.scale + 20 then
                         s.hit[d.id] = true
-                        damage(g, s.owner, d, s.dmg, sign(s.vx) * (if s.knock then 300 else 110), s.knock, 380)
+                        damage(g, s.owner, d, s.dmg, sign(s.vx) * (if s.knock then 300 else 110), s.knock, 380, true)
                         if s.kind ~= 'bird' then
                             s.dead = true
                             break
@@ -1569,13 +1612,16 @@ local function updatePlay(g: Game, dt: number)
     g.shake = math.max(0, g.shake - dt)
 
     for _, f in g.fighters do
+        -- Determine every actor's time slice before combat. New impacts take
+        -- effect next frame, independent of the order fighters are updated in.
+        f.stepDt = math.max(0, dt - f.hitPause)
+        f.hitPause = math.max(0, f.hitPause - dt)
         f.flash = math.max(0, f.flash - dt)
         f.hitT += dt
-    end
-
-    if g.hitstop > 0 then
-        g.hitstop -= dt
-        return
+        if f.team==1 then
+            Remarks.update(f.voice,dt)
+            if f.hp>f.maxHp*.4 then f.voice.danger=false end
+        end
     end
 
     -- fighters
@@ -1583,20 +1629,37 @@ local function updatePlay(g: Game, dt: number)
         s.denyT = math.max(0, s.denyT - dt)
         local f = s.fighter
         if f and not f.removed then
-            updatePlayer(g, s, f, dt)
+            local dev = slotDevice(g, s)
+            if f.stepDt <= 0 then
+                -- Input edges live for only one frame. Retain combat/direction
+                -- taps through the brief pose hold, then consume them once.
+                if dev then
+                    for button, down in dev.pressed do
+                        if down and button ~= 'start' and button ~= 'back' and button ~= 'cancel' then
+                            f.buffered[button] = true
+                        end
+                    end
+                end
+            else
+                if dev then
+                    for button in f.buffered do dev.pressed[button] = true end
+                end
+                table.clear(f.buffered)
+                updatePlayer(g, s, f, f.stepDt)
+            end
         end
     end
     for _, f in g.fighters do
-        if f.team == 2 and alive(f) then
-            updateEnemy(g, f, dt)
+        if f.team == 2 and alive(f) and f.stepDt > 0 then
+            updateEnemy(g, f, f.stepDt)
         end
     end
     for _, f in g.fighters do
-        if not f.removed then
-            f.st += dt
-            f.invuln = math.max(0, f.invuln - dt)
-            physics(g, f, dt)
-            updatePose(g, f, dt)
+        if not f.removed and f.stepDt > 0 then
+            f.st += f.stepDt
+            f.invuln = math.max(0, f.invuln - f.stepDt)
+            physics(g, f, f.stepDt)
+            updatePose(g, f, f.stepDt)
         end
     end
 
@@ -1610,8 +1673,8 @@ local function updatePlay(g: Game, dt: number)
                     local r = (a.radius + b.radius) * 0.9
                     if math.abs(dx) < r and math.abs(dy) < 16 then
                         local push = (r - math.abs(dx)) * 0.5 * math.min(1, dt * 10)
-                        a.x -= sign(dx) * push
-                        b.x += sign(dx) * push
+                        if a.stepDt > 0 then a.x -= sign(dx) * push end
+                        if b.stepDt > 0 then b.x += sign(dx) * push end
                     end
                 end
             end
@@ -1670,6 +1733,7 @@ local function updatePlay(g: Game, dt: number)
                 f.hp = math.min(f.maxHp, f.hp + 45)
                 s.score += 100
                 addFx(g, 'word', p.x, p.y, 70, 0.9, 'PIZZA!', G.hex(0xFFD34D), 26)
+                remark(g,f,'heal')
             end
         end
     end
@@ -1718,6 +1782,9 @@ local function updatePlay(g: Game, dt: number)
             end
         end
         if #g.pending == 0 and enemiesLeft(g) == 0 then
+            for _,hero in g.fighters do
+                if hero.team==1 and hero.hp>0 and alive(hero) then remark(g,hero,'victory') end
+            end
             local cp = CHECKPOINTS[g.cp]
             g.lockX = -1
             g.cp += 1
@@ -1758,6 +1825,25 @@ local function updatePlay(g: Game, dt: number)
                 g.goT = 4
             else
                 g.goT = 3.5
+            end
+        end
+    end
+
+    -- Notice visible enemies once per wave, after the arrival banner. A denied
+    -- co-op line can wait its turn, instead of becoming a per-frame bark.
+    for _,hero in g.fighters do
+        if hero.team==1 and hero.hp>0 and alive(hero) and hero.state~='enter' then
+            if hero.hp<=hero.maxHp*.25 and not hero.voice.danger then
+                if remark(g,hero,'low_health') then hero.voice.danger=true end
+            end
+            if hero.voice.seenWave~=g.cp and g.bannerT<=0 and hero.z<30 and hero.state~='down' then
+                for _,enemy in g.fighters do
+                    if enemy.team==2 and enemy.hp>0 and alive(enemy) and enemy.x>=g.camX and enemy.x<=g.camX+W
+                        and math.abs(enemy.x-hero.x)<560 and math.abs(enemy.y-hero.y)<180 then
+                        if remark(g,hero,'encounter') then hero.voice.seenWave=g.cp end
+                        break
+                    end
+                end
             end
         end
     end
@@ -1883,7 +1969,7 @@ local function drawFighter(g: Game, f: Fighter)
         A.beam(sx + f.facing * ox * f.scale, sy + oy * f.scale, 1150 * p, g.t, f.facing, 1 - math.max(0, f.st - 0.7) * 6)
     end
 
-    local top = (if f.kind == 'beast' and f.state == 'ultimate' then 185 elseif f.kind == 'beast' and f.state == 'secondary' then 145 else A.height(f.kind)) * f.scale
+    local top = fighterHeight(f)
     if f.slot > 0 then
         local s = g.slots[f.slot]
         local ty = sy - top - 30
@@ -2114,10 +2200,11 @@ local function drawTitle(g: Game)
         local x = W / 2 + (i - 3) * 190
         local p = A.newPose()
         p.t = g.t + i
-        A.shadow(x, 560, 34, 0)
+        local modelScale = A.modelScale(h.key)
+        A.shadow(x, 560, 34 * modelScale, 0)
         G.save()
         G.translate(x, 560)
-        G.scale(1.5, 1.5)
+        G.scale(1.5 * modelScale, 1.5 * modelScale)
         A.fighter(h.key, p, true)
         G.restore()
         uiText(g, h.name, x, 578, 16, h.color, 0.5)
@@ -2174,10 +2261,13 @@ local function drawSelect(g: Game)
             G.glow(x + w / 2, y + 220, 120, hero.color, 0.5)
             local p = A.newPose()
             p.t = g.t + s.idx
-            A.shadow(x + w / 2, y + 310, 44, 0)
+            local modelScale = A.modelScale(hero.key)
+            A.shadow(x + w / 2, y + 310, 44 * modelScale, 0)
             G.save()
             G.translate(x + w / 2, y + 310)
-            G.scale(1.65, 1.65)
+            -- A common display zoom fits the tallest Titan below the device
+            -- label without normalizing away the team's height differences.
+            G.scale(1.4 * modelScale, 1.4 * modelScale)
             A.fighter(hero.key, p, true)
             G.restore()
             local taken = heroTaken(g, s.hero, s)
@@ -2261,6 +2351,23 @@ local function drawEnd(g: Game)
     end
 end
 
+local function drawSpeech(g: Game)
+    local occupied: {Speech.Box} = {}
+    for _,f in g.fighters do
+        local v=f.voice
+        if f.team==1 and not f.removed and v.time>0 then
+            local x=f.x-g.camX
+            if x>=-30 and x<=W+30 then
+                local height=if f.pose.down>.5 then 30*f.scale else fighterHeight(f)
+                local y=math.clamp(f.y-f.z-height-40,166,H-30)
+                local box=Speech.place(tr(g,v.text),x,y,occupied)
+                table.insert(occupied,box)
+                Speech.draw(box,x,y,HEROES[f.hero].color,math.min(1,v.age/.10,v.time/.25))
+            end
+        end
+    end
+end
+
 local function drawPlay(g: Game)
     local shake = g.shake
     G.save()
@@ -2268,6 +2375,7 @@ local function drawPlay(g: Game)
         G.translate(rnd(-1, 1) * shake * 22, rnd(-1, 1) * shake * 14)
     end
     drawWorld(g)
+    drawSpeech(g)
     G.restore()
 
     if g.goT > 0 and math.floor(g.t * 3) % 2 == 0 then

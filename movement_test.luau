@@ -90,6 +90,40 @@ end
 
 return function(): Tests
     return function(test: Tester)
+        test.case('spawned Titans preserve the animated lineup height relationships', function(expect)
+            local heights = {}
+            for hero = 1, 5 do
+                local app = game(hero)
+                local f = app.g.slots[1].fighter
+                heights[hero] = Art.height(f.kind) * f.scale
+            end
+            -- Broad reference ranges allow breathing, hair and hover while
+            -- catching either uniform hero scaling or the wrong height order.
+            expect(heights[2] / heights[1]).greaterThan(1.24)
+            expect(heights[2] / heights[1]).lessThan(1.32)
+            expect(heights[3] / heights[1]).greaterThan(1.04)
+            expect(heights[3] / heights[1]).lessThan(1.15)
+            expect(heights[4] / heights[1]).greaterThan(.77)
+            expect(heights[4] / heights[1]).lessThan(.86)
+            expect(heights[5] / heights[1]).greaterThan(.70)
+            expect(heights[5] / heights[1]).lessThan(.78)
+        end)
+        test.case('resized Titans keep planted feet fixed during a running contact', function(expect)
+            for _, hero in { 1, 2, 5 } do
+                local app = game(hero)
+                key(app, 68, true)
+                step(app, 20)
+                local f = app.g.slots[1].fighter
+                f.pose.phase = .1
+                local stride, lift = Motion.gait(f.kind, 0)
+                local foot = Motion.stride(f.pose.phase, stride, lift)
+                local plantedX = f.x + foot * f.scale
+                step(app, 6)
+                local nextFoot, nextY = Motion.stride(f.pose.phase, stride, lift)
+                expect(nextY).is(0)
+                expect(math.abs(f.x + nextFoot * f.scale - plantedX)).lessThan(.02)
+            end
+        end)
         test.case('strikes anticipate, hold through hit window, and recover smoothly', function(expect)
             for _, timing in { { 0.28, 0.06, 0.15 }, { 0.42, 0.12, 0.24 } } do
                 local duration, first, last = timing[1], timing[2], timing[3]
