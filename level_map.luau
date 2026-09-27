@@ -10,8 +10,8 @@ local CYAN=G.hex(0x7FD8FF)
 local GREEN=G.hex(0x74E5A0)
 local MUTED=G.hex(0x9E94B0)
 local RED=G.hex(0xFF6375)
-local nodes={{180,356},{486,260},{792,356},{1098,260}}
-local bosses={'CINDERBLOCK','MAMMOTH','JINX','SLADE'}
+local nodes={{180,233},{486,233},{792,233},{1098,233},{180,433},{486,433},{792,433},{1098,433}}
+local bosses={'CINDERBLOCK','MAMMOTH','JINX','SLADE','MAD MOD','BROTHER BLOOD','BLACKFIRE','TRIGON'}
 M.bounds={reset={x=1002,y=32,w=242,h=48},
     back={x=34,y=651,w=176,h=42},play={x=1004,y=552,w=216,h=52},
     keep={x=388,y=416,w=234,h=52},confirm={x=656,y=416,w=234,h=52}}
@@ -35,7 +35,7 @@ function M.actionAt(mode:string,x:number,y:number,confirm:boolean):string?
         if allowed and x>=b.x and x<=b.x+b.w and y>=b.y and y<=b.y+b.h then return key end
     end
     if mode=='map' and not confirm then
-        for i,n in nodes do if math.abs(x-n[1])<132 and y>=n[2]-114 and y<=n[2]+102 then return `level{i}` end end
+        for i,n in nodes do if math.abs(x-n[1])<132 and y>=n[2]-92 and y<=n[2]+80 then return `level{i}` end end
     end
     return nil
 end
@@ -44,7 +44,7 @@ local function lock(x:number,y:number,c:Color)
     G.rrect(x-12,y-4,24,21,4,c);G.circle(x,y+4,2,INK);G.line(x,y+4,x,y+9,2,INK)
 end
 local function landmark(i:number,x:number,y:number,color:Color)
-    G.save();G.translate(x,y)
+    G.save();G.translate(x,y);G.scale(.55,.55)
     local dark=G.shade(color,-.5)
     G.poly({-100,20,-75,-2,83,-10,107,15,48,40,-63,44},G.hex(0x322A46),3)
     if i==1 then
@@ -65,6 +65,15 @@ local function landmark(i:number,x:number,y:number,color:Color)
         G.poly({-80,12,-80,-35,-44,-57,-44,-35,-7,-57,-7,-35,29,-57,72,-35,72,12},dark,3)
         G.oellipse(0,-13,21,24,color,3);G.poly({-2,-32,-12,-10,0,-10,-6,7,15,-18,3,-18},INK)
         G.ellipse(55,-108,19,8,G.fade(color,.2));G.ellipse(-58,-91,15,7,G.fade(color,.2))
+    elseif i>=5 then
+        local color2=if i==8 then RED elseif i==7 then G.hex(0xD4AEFF) elseif i==6 then CYAN else YELLOW
+        G.poly({-70,16,-58,-61,0,-100,58,-61,70,16},dark,3)
+        if i==8 then
+            G.poly({-45,-54,-67,-103,-19,-77,20,-77,67,-103,45,-54,0,-19},color2,3)
+            G.line(-28,-58,-8,-51,6,YELLOW);G.line(8,-51,28,-58,6,YELLOW)
+        elseif i==7 then G.poly({-34,10,-34,-51,0,-90,34,-51,34,10},color2,3)
+        elseif i==6 then G.poly({0,-86,38,-64,38,-20,0,2,-38,-20,-38,-64},color2,3);G.text('H',0,-66,36,INK,.5)
+        else for k=1,5 do G.ring(0,-44,k*9,k*9,4,if k%2==0 then color2 else PAPER) end end
     else
         G.poly({-48,17,-40,-61,-15,-80,-15,-111,0,-124,15,-111,15,-80,40,-61,48,17},dark,3)
         G.poly({-29,-55,0,-74,29,-55,25,-8,0,8,-25,-8},color,3)
@@ -80,10 +89,10 @@ function M.draw(locale:L.Locale,p:P.State,selected:number,cleared:number,confirm
     for y=133,516,64 do G.line(0,y,1280,y,1,G.hex(0x30253F)) end
     text(locale,'LEVEL MAP',34,32,43,PAPER)
     local summary=if cleared>0 then L.format(locale,'LEVEL {level} CLEARED!',{level=cleared}) else
-        L.format(locale,'{count} / 4 LEVELS CLEARED',{count=p.cleared})
+        L.format(locale,'{count} / 8 LEVELS CLEARED',{count=p.cleared})
     text(locale,summary,37,94,18,if cleared>0 then GREEN else CYAN)
     button(locale,'reset','RESET PROGRESS',hover,RED)
-    for i=1,3 do
+    for i=1,#nodes-1 do
         local a,b=nodes[i],nodes[i+1]
         local mid=(a[1]+b[1])/2
         local route={a[1],a[2],mid,a[2],mid,b[2],b[1],b[2]}
@@ -93,17 +102,17 @@ function M.draw(locale:L.Locale,p:P.State,selected:number,cleared:number,confirm
     for i,n in nodes do
         local available=P.canPlay(p,i)
         local color=if i<=p.cleared then GREEN elseif available then YELLOW else MUTED
-        landmark(i,n[1],n[2]-55,if available then color else G.hex(0x62576E))
-        if i==selected then G.ring(n[1],n[2],54+math.sin(t*3)*2,54+math.sin(t*3)*2,3,CYAN) end
-        G.oellipse(n[1],n[2],44,44,if available then color else G.hex(0x393044),4)
-        if available then G.text(tostring(i),n[1],n[2]-18,34,INK,.5,color)
+        landmark(i,n[1],n[2]-35,if available then color else G.hex(0x62576E))
+        if i==selected then G.ring(n[1],n[2],35+math.sin(t*3)*2,35+math.sin(t*3)*2,3,CYAN) end
+        G.oellipse(n[1],n[2],28,28,if available then color else G.hex(0x393044),4)
+        if available then G.text(tostring(i),n[1],n[2]-12,24,INK,.5,color)
         else lock(n[1],n[2],MUTED) end
         if i<=p.cleared then
-            G.oellipse(n[1]+35,n[2]-29,14,14,GREEN,2)
+            G.oellipse(n[1]+25,n[2]-23,14,14,GREEN,2)
             G.polyline({n[1]+28,n[2]-29,n[1]+33,n[2]-24,n[1]+42,n[2]-35},3,INK)
         end
-        text(locale,C.stages[i].name,n[1],n[2]+62,20,if available then PAPER else MUTED,.5,258)
-        text(locale,if i<=p.cleared then 'CLEARED' elseif available then 'AVAILABLE' else 'LOCKED',n[1],n[2]+91,12,color,.5)
+        text(locale,C.stages[i].name,n[1],n[2]+40,17,if available then PAPER else MUTED,.5,258)
+        text(locale,if i<=p.cleared then 'CLEARED' elseif available then 'AVAILABLE' else 'LOCKED',n[1],n[2]+66,11,color,.5)
     end
     G.rrect(30,526,1220,105,12,G.hex(0x2A1E3C),3)
     text(locale,L.format(locale,'LEVEL {level}',{level=selected}),52,544,13,CYAN)
@@ -111,7 +120,7 @@ function M.draw(locale:L.Locale,p:P.State,selected:number,cleared:number,confirm
     text(locale,L.format(locale,'4 WAVES / {boss}',{boss=L.text(locale,bosses[selected])}),440,546,16,YELLOW,0,515)
     local detail=if not P.canPlay(p,selected) then L.format(locale,'Clear {level} to unlock.',{level=L.text(locale,C.stages[selected-1].name)})
         elseif selected<=p.cleared then 'Cleared! Replay this level anytime.' else 'Defeat the boss to unlock the next level.'
-    if selected==4 and P.canPlay(p,selected) and p.cleared<4 then detail='Defeat Slade and save Jump City.' end
+    if selected==P.levels and P.canPlay(p,selected) and p.cleared<P.levels then detail='Defeat Trigon and restore the world.' end
     text(locale,detail,440,580,15,MUTED,0,520)
     button(locale,'play',if not P.canPlay(p,selected) then 'LOCKED' elseif selected<=p.cleared then 'REPLAY LEVEL' else 'PLAY LEVEL',hover,YELLOW,not P.canPlay(p,selected))
     button(locale,'back','BACK',hover,PAPER)

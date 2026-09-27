@@ -9,6 +9,7 @@ local L = require('localization')
 local P = require('pose')
 local HX = require('heroes')
 
+local E = require('expansion_art')
 local A = {}
 local H = G.hex
 local INK = G.INK
@@ -64,6 +65,7 @@ RIGS.slade = { headR = 17, bodyW = 35, bodyH = 40, legLen = 37, armLen = 33, th 
 
 -- Height of a figure's head top above its feet, for placing name tags.
 function A.height(kind: string): number
+    if E.has(kind) then return E.height(kind) end
     local h = HX.HEIGHTS[kind]
     if h then
         return h
@@ -400,6 +402,7 @@ end
 
 -- Draw one fighter at the origin, facing +x.
 function A.fighter(kind: string, p: Pose, titleFacing: boolean?)
+    if E.has(kind) then E.fighter(kind,p);return end
     if HX.isHero(kind) then
         HX.draw(kind, p, titleFacing)
     elseif kind == 'boss' then
@@ -660,6 +663,7 @@ local function themedStage(camX: number, t: number, theme: string, locale: L.Loc
 end
 
 function A.stage(camX: number, t: number, theme: string?, locale: L.Locale?)
+    if theme and E.stage(camX,t,theme) then return end
     if theme and theme ~= 'city' then
         themedStage(camX, t, theme, locale or 'en')
         return

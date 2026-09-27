@@ -33,13 +33,13 @@ test('new players start at zero and hydration never writes a default save', () =
 });
 test('clearing levels survives a fresh page and retains the final completion', () => {
   const h = host(); const v = vm(); const stop = connectProgress(v, h);
-  for (let level = 1; level <= 4; level++) {
+  for (let level = 1; level <= 8; level++) {
     complete(v, level);
     const reopened = vm(); connectProgress(reopened, h);
     assert.equal(reopened.p.completedLevels.value, level);
   }
   stop();
-  assert.deepEqual(JSON.parse(h.data.get(STORAGE_KEY)), { version: 1, cleared: 4 });
+  assert.deepEqual(JSON.parse(h.data.get(STORAGE_KEY)), { version: 1, cleared: 8 });
 });
 test('revisiting an earlier level cannot lower stored progress', () => {
   const h = host({ [STORAGE_KEY]: JSON.stringify({ version: 1, cleared: 3 }) });
@@ -57,7 +57,7 @@ test('reset persists, removes only this game save and restores first-level acces
 });
 test('malformed, out-of-range and incompatible saves never unlock levels', () => {
   for (const raw of [null, '', 'oops', 'null', '[]', '{}', '{"version":2,"cleared":4}',
-    '{"version":1,"cleared":-1}', '{"version":1,"cleared":5}', '{"version":1,"cleared":1.5}',
+    '{"version":1,"cleared":-1}', '{"version":1,"cleared":9}', '{"version":1,"cleared":1.5}',
     '{"version":1,"cleared":"4"}', '{"version":1,"cleared":1e400}']) assert.equal(parseProgress(raw), 0);
 });
 test('blocked reads and failed writes report session-only progress without crashing', () => {
@@ -87,4 +87,12 @@ test('pagehide flushes a pending completion and cleanup removes observers', () =
   assert.equal(parseProgress(h.data.get(STORAGE_KEY)), 1);
   stop(); complete(v, 2);
   assert.equal(parseProgress(h.data.get(STORAGE_KEY)), 1);
+});
+
+test('four-stage saves survive the expansion and accept later progress', () => {
+  const h = host({ [STORAGE_KEY]: '{"version":1,"cleared":4}' });
+  const v = vm(); connectProgress(v, h);
+  assert.equal(v.p.completedLevels.value, 4);
+  complete(v, 5);
+  assert.equal(parseProgress(h.data.get(STORAGE_KEY)), 5);
 });

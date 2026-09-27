@@ -1,5 +1,7 @@
 local Game = require('game')
 local C = require('campaign')
+local Hazards = require('hazards')
+local Art = require('art')
 local function step(app: any, frames: number)
     for _=1,frames do app.advance(app,1/60) end
 end
@@ -77,7 +79,7 @@ local function isolate(app: any, kind: string): any
 end
 return function(): Tests
     return function(test: Tester)
-        test.case('all sixteen encounters spawn their roster and only the final boss ends the campaign',function(expect)
+        test.case('all thirty-two encounters spawn their roster and only the final boss ends the campaign',function(expect)
             local app=game()
             local bosses=0
             local total=0
@@ -103,8 +105,59 @@ return function(): Tests
                     expect(app.g.boss).is(nil)
                 end
             end
-            expect(bosses).is(4)
+            expect(bosses).is(8)
             expect(total).greaterThan(110)
+        end)
+        test.case('every stage hazard telegraphs, has a safe lane, and respects jump height',function(expect)
+            expect(Hazards.zone(1,1,5)).is(nil)
+            local kinds={}
+            for stage=2,8 do
+                local warn=Hazards.zone(stage,1,3) :: Hazards.Zone
+                expect(warn.warning).is(true);expect(warn.active).is(false)
+                expect(Hazards.hits(warn,warn.x,warn.y,0)).is(false)
+                local z=Hazards.zone(stage,1,5) :: Hazards.Zone
+                expect(z.active).is(true);expect(kinds[z.kind]).is(nil);kinds[z.kind]=true
+                expect(Hazards.hits(z,z.x,z.y,0)).is(true)
+                expect(Hazards.hits(z,z.x,z.y+z.ry+1,0)).is(false)
+                expect(Hazards.hits(z,z.x,z.y,z.height+1)).is(false)
+                expect((Hazards.zone(stage,1,7) :: Hazards.Zone).active).is(false)
+            end
+        end)
+        test.case('hazards damage once per cycle without awarding score and freeze on pause',function(expect)
+            local app=game();encounter(app,9)
+            local g=app.g;local h=g.slots[1].fighter
+            g.fighters={h};g.pending={{kind='shock',delay=999,side=1}}
+            g.waveT=3
+            local z=Hazards.zone(3,1,5) :: Hazards.Zone
+            h.x=g.camX+z.x;h.y=z.y;h.invuln=0;h.z=0;h.state='idle'
+            local hp=h.hp;local score=g.slots[1].score
+            step(app,1);expect(h.hp).is(hp)
+            g.waveT=5;g.paused=true;step(app,60)
+            expect(g.waveT).is(5);expect(h.hp).is(hp)
+            g.paused=false;step(app,1)
+            expect(h.hp).is(hp-18);expect(g.slots[1].score).is(score)
+            h.state='idle';h.invuln=0;h.z=0;h.vz=0;h.x=g.camX+z.x;h.y=z.y
+            step(app,1);expect(h.hp).is(hp-18)
+        end)
+        test.case('Trigon is giant, takes melee damage, and alternates warned slam and fire volleys',function(expect)
+            local app=game();encounter(app,32)
+            local g=app.g;local f=g.boss;local h=g.slots[1].fighter
+            g.fighters={h,f};g.pending={};g.waveT=0
+            expect(f.kind).is('trigon');expect(Art.height(f.kind)*f.scale).greaterThan(400)
+            h.x=g.camX+850;h.y=630;h.z=0;h.vz=0;h.facing=1;h.state='idle'
+            local hp=f.hp
+            press(app,74);step(app,18);expect(f.hp).lessThan(hp)
+            f.state='idle';f.cd=0;f.move=0;f.hitPause=0
+            step(app,1);expect(f.state).is('titanSlam')
+            h.invuln=0;h.hitPause=0;h.state='idle';h.x=g.camX+500;h.z=0
+            local heroHp=h.hp
+            step(app,30);expect(h.hp).is(heroHp)
+            f.st=1.26;h.z=90;h.vz=0;step(app,1);expect(h.hp).is(heroHp)
+            f.sp=0;h.z=0;h.invuln=0;step(app,1);expect(h.hp).lessThan(heroHp)
+            f.st=2.6;step(app,1);f.cd=0;step(app,1)
+            expect(f.state).is('titanVolley');expect(#g.shots).is(0)
+            f.st=1.26;step(app,1);expect(#g.shots).is(3)
+            step(app,10);expect(#g.shots).is(3)
         end)
         test.case('pending reinforcements prevent premature wave completion',function(expect)
             local app=game()

@@ -37,7 +37,7 @@ The tutorial follows the selected English or Taiwan Chinese language and does
 not spend player resources or affect campaign progress.
 
 Press **Space** on the title screen (or **Start** on a controller) to begin.
-After the tutorial, the **level map** shows the route through all four stages.
+After the tutorial, the **level map** shows the route through all eight stages.
 Once the tutorial has been seen in the current session, Start opens the map directly.
 Only Jump City is available at first. Clear all four waves, including the boss
 and its reinforcements, to unlock the next stage. Completed stages remain
@@ -104,7 +104,7 @@ Specials and ultimates can cancel a grounded normal attack. Tap the button once 
 holding RT does not repeat the ultimate. Energy fills over time and whenever you land or
 take a hit. The HUD shows the cost and readiness of B, Y and RT; the full meter turns gold.
 Pizza heals.
-Fight through **four stages and sixteen encounters**, with larger mixed waves and
+Fight through **eight stages and thirty-two encounters**, with larger mixed waves and
 reinforcements that scale up for co-op:
 
 | Players | Regular enemy count | Regular enemy HP | Boss HP |
@@ -121,17 +121,34 @@ health percentage. Players waiting to respawn still count; players out of lives
 do not. Existing reinforcements remain for that wave, and continuing does not add
 them a second time. The next wave uses the current active player count.
 
-Each stage ends with a boss. Clearing the first three returns to the map and
-selects the newly available stage; defeating Slade shows the victory screen.
+Each stage ends with a boss. Clearing the first seven returns to the map and
+selects the newly available stage; defeating Trigon shows the victory screen.
 Press Start to return to the completed map. Every level attempt starts with
 full health, three lives and 60 energy. Joined players stay together between levels.
 
 | Stage | Setting | Boss |
 |---|---|---|
 | Jump City | Sunset streets | Cinderblock — punches, charges, ground slams |
-| Iron Docks | Moonlit harbor, cranes and cargo | Mammoth — aggressive charges and heavy slams |
-| Hex Foundry | H.I.V.E. reactors and industrial machinery | Jinx — three-lane hex volleys |
-| Slade HQ | Rooftops above the city | Slade — blade volleys, rushes and close combat |
+| Iron Docks | Moonlit harbor, cranes and moving cargo trucks | Mammoth — aggressive charges and heavy slams |
+| Hex Foundry | H.I.V.E. reactors with erupting floor vents | Jinx — three-lane hex volleys |
+| Slade HQ | Rooftops above the city; low security lasers | Slade — blade volleys, rushes and close combat |
+| Mad Mod School | Warped checkerboard halls and false-floor traps | Mad Mod — volleys, with rushing Mod Robots |
+| H.I.V.E. Academy | Training chambers and sonic fields | Brother Blood — close-range pulses, blades and charges |
+| Tamaran | Palace terraces and orbital strikes | Blackfire — energy volleys, with armored Gordanians |
+| Trigon’s Earth | Ruined Jump City and erupting hellfire | Trigon — giant ground slams and three-lane fire volleys |
+
+Maps 2–8 have encounter hazards with a two-second warning before they activate.
+Move out of the marked lane for cargo trucks, reactor vents, orbital strikes and
+hellfire. Jump over low rooftop lasers, false-floor traps and academy sonic fields.
+Hazards pause with the game and hit each player at most once per activation.
+
+Trigon occupies roughly one-third of the screen width (430px), stands 450px tall,
+and can be hit at his feet. Jump his warned ground slam and dodge or jump the
+three-lane fire volley. His recovery shortens below half health.
+
+The new arc is an original fan-game remix of cartoon settings and opponents;
+see [campaign inspirations and mechanics](docs/campaign-expansion.md).
+Existing four-stage browser saves unlock the fifth stage automatically.
 
 Slade Bots and Heavy Bots are joined by **Razor Bots** (fast rush attacks),
 **Blaster Bots** (telegraphed ranged shots), **Guard Bots** (frontal shields;
@@ -197,12 +214,12 @@ source research and font regeneration details are in
 | `main.luau` | Rive layout entry point |
 | `tutorial.luau` | timed control demonstrations, animated controller/keycaps and tutorial navigation |
 | `tutorial_test.luau` | real Robin actions, input synchronization, skip/replay, co-op joining and localization |
-| `level_map.luau` | four-stage route, unlock states, stage details and reset confirmation |
+| `level_map.luau` | eight-stage route, unlock states, stage details and reset confirmation |
 | `progress.luau` | sequential unlock rules and the Rive view-model save bridge |
 | `progress_test.luau` | stage selection, completion, replay, reset, hydration and browser controller regressions |
 | `browser_input.luau` | standard browser gamepad snapshots routed to the native input handler |
 | `web/` | signed browser release host, localStorage adapter, save tests and build script |
-| `campaign.luau` | enemy stats, stage identities, and all sixteen encounter rosters |
+| `campaign.luau` | enemy stats, stage identities, and all thirty-two encounter rosters |
 | `campaign_test.luau` | campaign progression, new enemy behavior and co-op regressions |
 | `game.luau` | the game: input, modes, combat, AI, waves, camera, HUD |
 | `movement_test.luau` | regression tests using the game's input and update callbacks |
@@ -211,7 +228,10 @@ source research and font regeneration details are in
 | `heroes.luau` | the five Titans, drawn in the Teen Titans Go! style |
 | `armature.luau` | side-view arm reach and consistent elbow bend for gameplay |
 | `profiles.luau` | three-quarter gameplay faces and trailing hair; opponent-facing gaze in either direction |
-| `art.luau` | villains, Cinderblock, effects and the Jump City stage |
+| `art.luau` | villains, Cinderblock, effects and the original four stage backgrounds |
+| `expansion_art.luau` | new cartoon-inspired enemies, bosses, locations and giant Trigon |
+| `hazards.luau` | shared hazard timing, hit geometry, warnings and artwork |
+| `tools/capture_campaign.py` | native screenshots of any stage, boss wave or completed map |
 | `pose.luau` | the animation pose shared by the drawing modules |
 | `powers.luau` | secondary/ultimate names, costs, timing, reach and damage |
 | `power_art.luau` | ability effects, gorilla and T-Rex transformations |

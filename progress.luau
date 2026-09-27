@@ -1,6 +1,6 @@
 -- Linear campaign progress. Persistence is supplied by the browser host via the VM.
 local P={}
-P.levels=4
+P.levels=#require('campaign').stages
 export type State={cleared:number,revision:number,status:string}
 export type Bridge={count:Property<number>?,ready:Property<boolean>?,revision:Property<number>?,
     status:Property<string>?,loaded:boolean,lastCount:number,lastRevision:number}

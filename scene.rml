@@ -62,6 +62,7 @@
     <ScriptAsset file="profiles.luau" name="profiles" isModule="true" id="0:110"/>
     <ScriptAsset file="power_art.luau" name="power_art" isModule="true" id="0:111"/>
     <ScriptAsset file="heroes.luau" name="heroes" isModule="true" id="0:112"/>
+    <ScriptAsset file="expansion_art.luau" name="expansion_art" isModule="true" id="0:124"/>
     <ScriptAsset file="art.luau" name="art" isModule="true" id="0:113"/>
     <ScriptAsset file="attacks.luau" name="attacks" isModule="true" id="0:114"/>
     <ScriptAsset file="campaign.luau" name="campaign" isModule="true" id="0:115"/>
@@ -71,6 +72,7 @@
     <ScriptAsset file="progress.luau" name="progress" isModule="true" id="0:120"/>
     <ScriptAsset file="level_map.luau" name="level_map" isModule="true" id="0:121"/>
     <ScriptAsset file="browser_input.luau" name="browser_input" isModule="true" id="0:122"/>
+    <ScriptAsset file="hazards.luau" name="hazards" isModule="true" id="0:123"/>
     <ScriptAsset file="game.luau" name="game" isModule="true" id="0:119"/>
     <ScriptAsset file="main.luau" name="main" id="0:80"/>
     <ScriptAsset file="movement_test.luau" name="movement_test" id="0:150"/>

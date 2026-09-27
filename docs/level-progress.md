@@ -1,6 +1,6 @@
 # Level map and persistence
 
-The four existing stages are independently selectable levels, each containing
+The eight stages are independently selectable levels, each containing
 four encounters. Level 1 starts unlocked. A level is complete only when its final
 boss encounter has no enemies or queued reinforcements and at least one Titan
 is alive. A completion unlocks the next level; replaying earlier levels never
@@ -14,16 +14,18 @@ reduces progress. Losing or leaving a level does not mark it complete.
 {"version":1,"cleared":2}
 ```
 
-The key is `ttgo.campaign.progress.v1`. `cleared` is an integer from 0 through 4;
+The key is `ttgo.campaign.progress.v1`. `cleared` is an integer from 0 through 8;
 malformed, out-of-range or unsupported-version records restore as a fresh campaign.
 A contiguous completion count is sufficient because levels unlock in order.
+Version 1 saves from the original four-stage campaign remain valid; a cleared
+count of 4 now unlocks stage 5. No storage key change or reset is needed.
 Character choice, scores and mid-level combat state are not part of this save.
 
 The `Window` view model exposes:
 
 | Property | Purpose |
 |---|---|
-| `completedLevels` | Completed prefix of the four-level route |
+| `completedLevels` | Completed prefix of the eight-level route |
 | `progressReady` | Host hydration has finished, including unavailable-storage fallback |
 | `progressRevision` | Incremented only after a local completion or confirmed reset |
 | `progressStatus` | `session`, `saved` or `unavailable`, displayed on the map |
@@ -66,7 +68,7 @@ npm run build:host
 ```
 
 Native regression tests drive the game's actual keyboard, pointer, controller
-and advance callbacks. They cover all four level launches/completions, locked
+and advance callbacks. They cover all eight level launches/completions, locked
 access, boss reinforcements, defeat, replay, reset/cancel, pointer scaling,
 hydration, cross-tab restore and browser-controller disconnect. JavaScript tests
 exercise the persistence adapter across new host instances, failed storage,

@@ -23,6 +23,7 @@ local Tutorial = require('tutorial')
 local Progress = require('progress')
 local LevelMap = require('level_map')
 local BrowserInput = require('browser_input')
+local Hazards = require('hazards')
 
 local W = G.W
 local H = G.H
@@ -230,6 +231,7 @@ type Game = {
     demo: Game?,
     menuHover: string,
     stage: number,
+    hazardCycle: number, hazardHits: { [number]: boolean },
     healthPlayers: number,
     wavePlayers: number,
     modeT: number,
@@ -316,7 +318,7 @@ local function newGame(): Game
         progress = Progress.new(), selectedLevel = 1, runLevel = 1, mapCleared = 0,
         resetConfirm = false, resetYes = false,
         tutorialSeen = false, tutorialReturn = 'title', tutorial = nil, demo = nil, menuHover = '',
-        mode = 'title', stage = 1, healthPlayers = 1, wavePlayers = 1, modeT = 0, t = 0, devs = {}, slots = slots, fighters = {}, shots = {},
+        mode = 'title', stage = 1, hazardCycle = -1, hazardHits = {}, healthPlayers = 1, wavePlayers = 1, modeT = 0, t = 0, devs = {}, slots = slots, fighters = {}, shots = {},
         fx = {}, pickups = {}, camX = 0, lockX = -1, cp = 1, pending = {}, waveT = 0, goT = 0,
         shake = 0, paused = false, nextId = 1, continueT = 0, banner = '',
         bannerSub = '', bannerT = 0, selectT = -1, boss = nil,
@@ -478,7 +480,7 @@ end
 
 local function damage(g: Game, att: Fighter, d: Fighter, dmg: number, kbx: number, knock: boolean, launch: number, projectile: boolean?)
     -- A guard blocks frontal light hits; flank, jump over it, or use a knockdown.
-    if d.kind == 'shield' and not knock and d.state ~= 'hurt' and d.state ~= 'down'
+    if (d.kind == 'shield' or d.kind == 'gordanian') and not knock and d.state ~= 'hurt' and d.state ~= 'down'
         and (att.x - d.x) * d.facing > 0 and att.z < 35 then
         dmg *= .3
         addFx(g, 'word', d.x, d.y, 155, .45, 'BLOCK', G.hex(0x66D9FF), 16)
@@ -504,7 +506,7 @@ local function damage(g: Game, att: Fighter, d: Fighter, dmg: number, kbx: numbe
         att.hitPause = math.max(att.hitPause, pause)
     end
 
-    if att.slot > 0 then
+    if att.slot > 0 and att ~= d then
         local s = g.slots[att.slot]
         s.score += dmg * 10
         s.energy = math.min(100, s.energy + 4)
@@ -524,6 +526,8 @@ local function damage(g: Game, att: Fighter, d: Fighter, dmg: number, kbx: numbe
                 g.slots[att.slot].score += e.score
             end
         end
+    elseif d.kind=='trigon' then
+        return -- Giant cannot be knocked out of his telegraphed attack cycle.
     elseif isBoss(d.kind) then
         -- Bosses stagger after sustained damage, with lighter armor on Jinx.
         d.armor += dmg
@@ -968,7 +972,42 @@ local function aheadOnSide(g: Game, target: Fighter, me: Fighter, side: number):
     return n
 end
 
+-- Trigon holds the right side of the arena; feet remain reachable by melee.
+local function updateTrigon(g:Game,f:Fighter,dt:number)
+    f.entering=false;f.facing=-1;f.vx=0;f.vy=0
+    if f.hp<=0 or f.state=='down' or f.state=='getup' or f.state=='hurt' then return end
+    f.x=g.camX+1030;f.y=630
+    if f.state=='idle' or f.state=='walk' then
+        f.cd-=dt
+        if f.cd<=0 then
+            f.move+=1
+            setState(f,if f.move%2==1 then 'titanSlam' else 'titanVolley')
+        end
+    elseif f.state=='titanSlam' then
+        if f.st>=1.25 and f.sp==0 then
+            f.sp=1;g.shake=.6
+            addFx(g,'wave',g.camX+650,565,0,.8,'',G.hex(0xFF8B55),1)
+            for _,h in g.fighters do
+                if h.team==1 and canBeHit(h) and h.z<42 and math.abs(h.x-g.camX-650)<520 then
+                    damage(g,f,h,24,-220,true,340)
+                end
+            end
+        end
+        if f.st>2.5 then setState(f,'idle');f.cd=if f.hp<f.maxHp*.5 then .7 else 1.5 end
+    elseif f.state=='titanVolley' then
+        if f.st>=1.25 and f.sp==0 then
+            f.sp=1
+            for lane=0,2 do
+                fireShot(g,f,'hex',410,20,true,3)
+                local shot=g.shots[#g.shots];shot.x=f.x-160;shot.y=500+lane*70;shot.z=66
+            end
+        end
+        if f.st>2.4 then setState(f,'idle');f.cd=if f.hp<f.maxHp*.5 then .7 else 1.5 end
+    end
+end
+
 local function updateEnemy(g: Game, f: Fighter, dt: number)
+    if f.kind=='trigon' then updateTrigon(g,f,dt);return end
     local state = f.state
     local behavior = ENEMIES[f.kind].behavior
     local ranged = behavior == 'ranged' or behavior == 'hex'
@@ -1018,7 +1057,7 @@ local function updateEnemy(g: Game, f: Fighter, dt: number)
                 f.cd = if behavior == 'hex' then 2.4 else 2.8
                 f.vx, f.vy = 0, 0
                 return
-            elseif behavior == 'shock' and dxT < 155 then
+            elseif (behavior == 'shock' or f.kind=='blood') and dxT < 155 then
                 setState(f, 'pulse')
                 f.cd = 2.8
                 f.vx, f.vy = 0, 0
@@ -1302,7 +1341,11 @@ local function updatePose(g: Game, f: Fighter, dt: number)
     p.windup = 0
     p.stroke = 0
     p.active = false
-    if f.state == 'dashatk' then
+    if f.state=='titanSlam' then
+        p.move=7;p.ext=if f.st<1.25 then -1 else 1
+    elseif f.state=='titanVolley' then
+        p.move=6;p.ext=if f.st<1.25 then -.5 else 1
+    elseif f.state == 'dashatk' then
         p.move = 1
         p.ext = Motion.strike(f.st, DASH_ATTACK_TIME, DASH_HIT_START, DASH_HIT_END)
         p.windup = Motion.windup(f.st, DASH_HIT_START, p.ext)
@@ -1371,10 +1414,11 @@ local function spawnEnemy(g: Game, kind: string, side: number)
     local f = newFighter(g, kind, 2, x, y)
     f.entering = true
     f.facing = -side
+    if kind=='trigon' then f.x=g.camX+1030;f.y=630;f.entering=false;f.cd=2 end
     if isBoss(kind) then
         g.boss = f
         g.banner = tr(g, ENEMIES[kind].name) .. (if g.locale == 'zh-TW' then '！' else '!')
-        g.bannerSub = if kind == 'boss' then 'JUMP OVER THE SHOCKWAVE' elseif kind == 'mammoth' then 'SIDESTEP HIS CHARGE' elseif kind == 'jinx' then 'DODGE THE HEX VOLLEY' else 'THE FINAL SHOWDOWN'
+        g.bannerSub = if kind == 'boss' then 'JUMP OVER THE SHOCKWAVE' elseif kind == 'mammoth' then 'SIDESTEP HIS CHARGE' elseif kind == 'jinx' then 'DODGE THE HEX VOLLEY' elseif kind=='trigon' then 'JUMP THE SLAM - DODGE THE FIRE' else 'BOSS BATTLE'
         g.bannerT = 2.2
         g.shake = 0.4
     end
@@ -1418,6 +1462,7 @@ local function syncCoopDifficulty(g: Game)
 end
 
 local function beginCheckpoint(g: Game, cp: Checkpoint)
+    g.hazardCycle=-1;table.clear(g.hazardHits)
     g.stage = cp.stage
     g.lockX = cp.x
     g.waveT = 0
@@ -1589,7 +1634,7 @@ local function menuAction(g: Game, action: string)
         elseif action=='reset' then g.resetConfirm,g.resetYes=true,false
         elseif action=='back' then toTitle(g)
         elseif string.sub(action,1,5)=='level' then
-            g.selectedLevel=math.clamp(tonumber(string.sub(action,6)) or 1,1,4)
+            g.selectedLevel=math.clamp(tonumber(string.sub(action,6)) or 1,1,Progress.levels)
         elseif action=='play' and Progress.canPlay(g.progress,g.selectedLevel) then
             local joined=false
             for _,s in g.slots do if s.dev~='' then joined=true;s.locked=false end end
@@ -1627,7 +1672,7 @@ local function updateMap(g: Game)
         elseif pressed(d,'cancel') or pressed(d,'back') or pressed(d,'b') then toTitle(g);return
         else
             if pressed(d,'L') or pressed(d,'U') then g.selectedLevel=math.max(1,g.selectedLevel-1)
-            elseif pressed(d,'R') or pressed(d,'D') then g.selectedLevel=math.min(4,g.selectedLevel+1) end
+            elseif pressed(d,'R') or pressed(d,'D') then g.selectedLevel=math.min(Progress.levels,g.selectedLevel+1) end
             if pressed(d,'a') or pressed(d,'start') then
                 if Progress.canPlay(g.progress,g.selectedLevel) then
                     if slotOf(g,id)==nil then joinSlot(g,id) end
@@ -1817,6 +1862,18 @@ local function updatePlay(g: Game, dt: number)
     end
 
     updateShots(g, dt)
+    if g.lockX>=0 then
+        local zone=Hazards.zone(g.stage,CHECKPOINTS[g.cp].wave,g.waveT)
+        if zone then
+            if zone.cycle~=g.hazardCycle then g.hazardCycle=zone.cycle;table.clear(g.hazardHits) end
+            for _,f in g.fighters do
+                if f.team==1 and canBeHit(f) and not g.hazardHits[f.id] and Hazards.hits(zone,f.x-g.camX,f.y,f.z) then
+                    g.hazardHits[f.id]=true
+                    damage(g,f,f,18,180,true,260,true)
+                end
+            end
+        end
+    end
 
     -- knocked-out fighters
     for _, f in g.fighters do
@@ -1933,7 +1990,7 @@ local function updatePlay(g: Game, dt: number)
                 if cp.stage==g.runLevel then
                     Progress.complete(g.progress,g.runLevel)
                     for _,s in g.slots do if s.dev~='' and not s.out then s.score+=2500 end end
-                    if g.runLevel==4 then
+                    if g.runLevel==Progress.levels then
                         g.mode,g.modeT,g.banner='win',0,''
                     else toMap(g,g.runLevel) end
                     return
@@ -2150,6 +2207,17 @@ type DrawItem = { y: number, kind: number, idx: number }
 local function drawWorld(g: Game)
     A.stage(g.camX, g.t, Campaign.stages[g.stage].theme, g.locale)
 
+    local hazard=if g.lockX>=0 and CHECKPOINTS[g.cp] then Hazards.zone(g.stage,CHECKPOINTS[g.cp].wave,g.waveT) else nil
+    if hazard then Hazards.draw(hazard,g.locale,g.waveT,false) end
+    if g.boss and g.boss.kind=='trigon' and g.boss.hp>0 then
+        local b=g.boss
+        if b.state=='titanSlam' and b.st<1.25 then
+            G.rect(130,470,1040,220,G.fade(G.hex(0xFF654E),.16))
+            G.ring(650,575,520,105,4,G.hex(0xFFE14D))
+        elseif b.state=='titanVolley' and b.st<1.25 then
+            for lane=0,2 do G.line(40,500+lane*70,870,500+lane*70,3,G.hex(0xFF9B74)) end
+        end
+    end
     -- ground effects and shadows first
     for _, e in g.fx do
         if e.kind == 'wave' then
@@ -2191,6 +2259,14 @@ local function drawWorld(g: Game)
         end
     end
 
+    if hazard then Hazards.draw(hazard,g.locale,g.waveT,true) end
+
+    if g.boss and g.boss.kind=='trigon' and g.boss.st<1.25 then
+        local b=g.boss
+        if b.state=='titanSlam' or b.state=='titanVolley' then
+            uiText(g,if b.state=='titanSlam' then 'TRIGON SLAM - JUMP!' else 'HELLFIRE VOLLEY - CHANGE LANES',640,193,18,G.hex(0xFFE14D),.5)
+        end
+    end
     -- overhead effects
     for _, e in g.fx do
         local k = e.t / e.life
@@ -2323,7 +2399,7 @@ local function drawHud(g: Game)
 
     local cp = CHECKPOINTS[math.min(g.cp, #CHECKPOINTS)]
     G.rrect(16, 114, 420, 34, 8, G.fade(G.INK, .88))
-    uiText(g, L.format(g.locale, '{stage}/4  {name}  -  WAVE {wave}/4', { stage = g.stage, name = tr(g, Campaign.stages[g.stage].name), wave = cp.wave }), 30, 124, 13, G.hex(0xFFE14D))
+    uiText(g, L.format(g.locale, '{stage}/8  {name}  -  WAVE {wave}/4', { stage = g.stage, name = tr(g, Campaign.stages[g.stage].name), wave = cp.wave }), 30, 124, 13, G.hex(0xFFE14D))
     if g.lockX >= 0 then
         uiText(g, L.format(g.locale, '{players}P  ENEMIES {count}', { players = math.max(1, activeSlots(g)), count = enemiesLeft(g) + #g.pending }), W - 26, 124, 14, G.WHITE, 1)
     end

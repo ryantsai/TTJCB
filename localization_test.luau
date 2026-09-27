@@ -186,7 +186,7 @@ return function(): Tests
             expect(app.g.slots[2].dev).is('')
         end)
 
-        test.case('Chinese boss banners and map returns work through all four stages', function(expect)
+        test.case('Chinese boss banners and map returns work through all eight stages', function(expect)
             local app: any = (Game.create :: any)(nil)
             app.g.tutorialSeen = true
             press(app, 258)
@@ -199,7 +199,7 @@ return function(): Tests
             local g = app.g
             local hero = g.slots[1].fighter
             hero.invuln = 10000
-            for _, index in { 4, 8, 12, 16 } do
+            for _, index in { 4, 8, 12, 16, 20, 24, 28, 32 } do
                 local cp = C.checkpoints[index]
                 g.mode='play';g.runLevel=cp.stage
                 g.fighters = { hero }
@@ -216,7 +216,7 @@ return function(): Tests
                 expect(g.banner).is(L.text('zh-TW', C.enemies[cp.spawns[1].kind].name) .. '！')
                 g.fighters = { hero }
                 step(app, 1)
-                if index < 16 then
+                if index < 32 then
                     expect(g.mode).is('map')
                     expect(g.mapCleared).is(cp.stage)
                     expect(g.selectedLevel).is(cp.stage+1)

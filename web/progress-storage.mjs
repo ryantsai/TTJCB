@@ -3,7 +3,7 @@ export const STORAGE_KEY = 'ttgo.campaign.progress.v1';
 export function parseProgress(raw) {
   try {
     const value = JSON.parse(raw);
-    if (value?.version === 1 && Number.isInteger(value.cleared) && value.cleared >= 0 && value.cleared <= 4) {
+    if (value?.version === 1 && Number.isInteger(value.cleared) && value.cleared >= 0 && value.cleared <= 8) {
       return value.cleared;
     }
   } catch {}
@@ -36,7 +36,7 @@ export function connectProgress(viewModel, environment = globalThis) {
     if (revision.value === lastRevision) return;
     lastRevision = revision.value;
     const cleared = count.value;
-    if (!Number.isInteger(cleared) || cleared < 0 || cleared > 4) return;
+    if (!Number.isInteger(cleared) || cleared < 0 || cleared > 8) return;
     try {
       if (!storage) storage = environment.localStorage;
       if (cleared === 0) storage.removeItem(STORAGE_KEY);

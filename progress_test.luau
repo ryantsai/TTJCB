@@ -67,7 +67,7 @@ return function():Tests
             press(a,257);expect(a.g.mode).is('map')
             press(a,68);expect(a.g.selectedLevel).is(2)
             press(a,257);expect(a.g.mode).is('map')
-            click(a,180,356);expect(a.g.mode).is('map')
+            click(a,180,233);expect(a.g.mode).is('map')
             expect(a.g.selectedLevel).is(1)
             click(a,1100,579);expect(a.g.mode).is('select')
         end)
@@ -75,18 +75,18 @@ return function():Tests
             local a=app();press(a,257)
             expect(a.g.mode).is('map');expect(a.g.selectedLevel).is(1)
             expect(P.canPlay(a.g.progress,1)).is(true)
-            for level=2,4 do
+            for level=2,8 do
                 press(a,68);press(a,257);click(a,1100,579)
                 expect(a.g.selectedLevel).is(level);expect(a.g.mode).is('map')
                 expect(P.canPlay(a.g.progress,level)).is(false)
             end
-            click(a,180,356);launch(a)
+            click(a,180,233);launch(a)
             expect(a.g.mode).is('play');expect(a.g.runLevel).is(1)
             expect(a.g.progress.cleared).is(0)
         end)
-        test.case('all four levels start at their own stage and unlock only after the boss wave',function(expect)
+        test.case('all eight levels start at their own stage and unlock only after the boss wave',function(expect)
             local a,p=app();press(a,257)
-            for level=1,4 do
+            for level=1,8 do
                 expect(a.g.selectedLevel).is(level)
                 launch(a)
                 expect(a.g.runLevel).is(level);expect(a.g.stage).is(level)
@@ -98,14 +98,14 @@ return function():Tests
                     if wave<4 then expect(a.g.mode).is('play') end
                 end
                 expect(p.progressRevision.value).is(level)
-                if level==4 then
+                if level==8 then
                     expect(a.g.mode).is('win');step(a,91);press(a,257)
                 end
                 expect(a.g.mode).is('map');expect(a.g.mapCleared).is(level)
-                expect(P.unlocked(a.g.progress)).is(math.min(4,level+1))
+                expect(P.unlocked(a.g.progress)).is(math.min(8,level+1))
                 expect(a.g.slots[1].dev).is('kb1')
             end
-            for level=1,4 do expect(P.canPlay(a.g.progress,level)).is(true) end
+            for level=1,8 do expect(P.canPlay(a.g.progress,level)).is(true) end
         end)
         test.case('boss death waits for reinforcements and a surviving Titan before unlocking',function(expect)
             local a,p=app();press(a,257);launch(a);encounter(a,4)
@@ -123,11 +123,21 @@ return function():Tests
         test.case('replaying a cleared level keeps every later unlock and does not write a lower save',function(expect)
             local a,p=app(3);press(a,257)
             expect(a.g.selectedLevel).is(4)
-            click(a,180,356);launch(a)
+            click(a,180,233);launch(a)
             for wave=1,4 do clearWave(a,wave) end
             expect(a.g.mode).is('map');expect(a.g.mapCleared).is(1)
             expect(a.g.progress.cleared).is(3);expect(p.completedLevels.value).is(3)
             expect(p.progressRevision.value).is(0);expect(P.canPlay(a.g.progress,4)).is(true)
+        end)
+        test.case('old four-stage saves unlock the new arc and every lower-row map node is clickable',function(expect)
+            local a=app(4);press(a,257)
+            expect(a.g.selectedLevel).is(5);expect(P.canPlay(a.g.progress,5)).is(true)
+            for level=5,8 do
+                click(a,180+(level-5)*306,433)
+                expect(a.g.selectedLevel).is(level)
+            end
+            press(a,257);expect(a.g.mode).is('map')
+            click(a,180,433);press(a,257);expect(a.g.mode).is('select')
         end)
         test.case('reset can be cancelled and confirmation locks later levels without changing language',function(expect)
             local a,p=app(4);press(a,258);press(a,257);press(a,82)
