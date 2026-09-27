@@ -18,7 +18,7 @@ const keyEvents = [];
 const keyCodes = {
   KeyW: 87, KeyA: 65, KeyS: 83, KeyD: 68,
   KeyJ: 74, KeyK: 75, KeyL: 76, KeyI: 73, KeyU: 85,
-  KeyM: 77, KeyR: 82, KeyH: 72,
+  KeyR: 82, KeyH: 72,
   Space: 32, Enter: 257, Escape: 256, Backspace: 259, Tab: 258,
   ArrowUp: 265, ArrowLeft: 263, ArrowDown: 264, ArrowRight: 262,
   Comma: 44, Period: 46, Slash: 47, Semicolon: 59, Quote: 39,

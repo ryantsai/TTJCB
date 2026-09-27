@@ -72,7 +72,7 @@ return function():Tests
             click(a,1100,579);expect(a.g.mode).is('select')
         end)
         test.case('new players can inspect locked levels but cannot launch them by keyboard or pointer',function(expect)
-            local a=app();press(a,77)
+            local a=app();press(a,257)
             expect(a.g.mode).is('map');expect(a.g.selectedLevel).is(1)
             expect(P.canPlay(a.g.progress,1)).is(true)
             for level=2,4 do
@@ -85,7 +85,7 @@ return function():Tests
             expect(a.g.progress.cleared).is(0)
         end)
         test.case('all four levels start at their own stage and unlock only after the boss wave',function(expect)
-            local a,p=app();press(a,77)
+            local a,p=app();press(a,257)
             for level=1,4 do
                 expect(a.g.selectedLevel).is(level)
                 launch(a)
@@ -108,7 +108,7 @@ return function():Tests
             for level=1,4 do expect(P.canPlay(a.g.progress,level)).is(true) end
         end)
         test.case('boss death waits for reinforcements and a surviving Titan before unlocking',function(expect)
-            local a,p=app();press(a,77);launch(a);encounter(a,4)
+            local a,p=app();press(a,257);launch(a);encounter(a,4)
             local h=a.g.slots[1].fighter
             a.g.fighters={h};a.g.pending={{kind='runner',delay=200,side=1}}
             step(a,1)
@@ -121,7 +121,7 @@ return function():Tests
             expect(a.g.mode).is('map');expect(P.canPlay(a.g.progress,2)).is(false)
         end)
         test.case('replaying a cleared level keeps every later unlock and does not write a lower save',function(expect)
-            local a,p=app(3);press(a,77)
+            local a,p=app(3);press(a,257)
             expect(a.g.selectedLevel).is(4)
             click(a,180,356);launch(a)
             for wave=1,4 do clearWave(a,wave) end
@@ -130,7 +130,7 @@ return function():Tests
             expect(p.progressRevision.value).is(0);expect(P.canPlay(a.g.progress,4)).is(true)
         end)
         test.case('reset can be cancelled and confirmation locks later levels without changing language',function(expect)
-            local a,p=app(4);press(a,258);press(a,77);press(a,82)
+            local a,p=app(4);press(a,258);press(a,257);press(a,82)
             expect(a.g.resetConfirm).is(true);expect(a.g.resetYes).is(false)
             press(a,257)
             expect(a.g.resetConfirm).is(false);expect(a.g.progress.cleared).is(4)
@@ -144,7 +144,10 @@ return function():Tests
         end)
         test.case('map and reset pointer targets respect scaling, capture and the confirmation modal',function(expect)
             local a,p=app(2);a.resize(a,Vector.xy(1600,1000),1)
-            click(a,168.75,118.75) -- Title map button, 1.25x scale and 50px letterbox.
+            click(a,168.75,118.75) -- Former title shortcut is inert at 1.25x scale.
+            expect(a.g.mode).is('title')
+            press(a,77);expect(a.g.mode).is('title')
+            press(a,257)
             expect(a.g.mode).is('map')
             a.pointerDown(a,pointer(1,1400,120));a.pointerUp(a,pointer(2,1400,120))
             expect(a.g.resetConfirm).is(false)
@@ -157,7 +160,7 @@ return function():Tests
             expect(p.completedLevels.value).is(0)
         end)
         test.case('save hydration waits for the host and later tab changes update the map without echo writes',function(expect)
-            local a,p=app(2,false);press(a,77)
+            local a,p=app(2,false);press(a,257)
             expect(a.g.progress.cleared).is(0);expect(p.completedLevels.value).is(2)
             p.progressReady.value=true;step(a,1)
             expect(a.g.progress.cleared).is(2);expect(a.g.selectedLevel).is(3)

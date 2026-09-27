@@ -32,7 +32,7 @@ not spend player resources or affect campaign progress.
 
 Press **Space** on the title screen (or **Start** on a controller) to begin.
 After the tutorial, the **level map** shows the route through all four stages.
-Open it directly with **Level Map** on the title screen or keyboard **M**.
+Once the tutorial has been seen in the current session, Start opens the map directly.
 Only Jump City is available at first. Clear all four waves, including the boss
 and its reinforcements, to unlock the next stage. Completed stages remain
 available for replay. Choose a stage on the map, then press **Space / A** or
@@ -217,8 +217,8 @@ source research and font regeneration details are in
 | `tc_glyphs.luau` | generated Noto Sans TC vector glyphs from the bundled WOFF2 |
 | `tools/bench_coop.py` | repeatable native Rive stress scene with four heroes and twelve enemies |
 
-To inspect a later map state, run
-`rive . --data=completedLevels=2 --data=progressReady=true --key=m`.
+To inspect a later map state, start and skip the tutorial in the native preview,
+or use the `progress_test.luau` harness with a ready progress bridge.
 This injects a temporary save into the native preview; it does not write browser storage.
 
 Titans react in speech bubbles when enemies appear, they take damage, health

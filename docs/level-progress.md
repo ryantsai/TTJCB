@@ -57,9 +57,9 @@ Continue to use the native preview for authoring, as specified in `AGENTS.md`.
 rive . --verify
 rive inspect . --summary
 rive . --test
-rive . --screenshot=build/level-map-new.png --key=m --advance=1
-rive . --screenshot=build/level-map-saved-tc.png --data=completedLevels=2 --data=progressReady=true --data=progressStatus=saved --key=tab --key=m --advance=1
-rive . --screenshot=build/level-map-reset.png --data=completedLevels=4 --data=progressReady=true --data=progressStatus=saved --key=m --key=r --advance=1
+rive . --screenshot=build/level-map-new.png --key=space --advance=1 --key=escape --advance=1
+rive . --screenshot=build/level-map-saved-tc.png --data=completedLevels=2 --data=progressReady=true --data=progressStatus=saved --key=tab --key=space --advance=1 --key=escape --advance=1
+rive . --screenshot=build/level-map-reset.png --data=completedLevels=4 --data=progressReady=true --data=progressStatus=saved --key=space --advance=1 --key=escape --advance=1 --key=r --advance=1
 cd web
 npm test
 npm run build:host

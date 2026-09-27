@@ -1579,8 +1579,7 @@ local function tutorialNext(g: Game, previous: boolean?)
 end
 
 local function menuAction(g: Game, action: string)
-    if action=='map' and g.mode=='title' then toMap(g)
-    elseif g.mode=='map' then
+    if g.mode=='map' then
         if g.resetConfirm then
             if action=='keep' then g.resetConfirm=false
             elseif action=='confirm' then
@@ -2373,7 +2372,6 @@ local function drawTitle(g: Game)
     uiText(g, L.format(g.locale, '1-4 PLAYERS   CONTROLLERS CONNECTED: {count}', { count = pads }), 18, 698, 10, G.hex(0x8D839E))
     uiText(g, 'UNOFFICIAL FAN GAME', W - 16, H - 22, 11, G.hex(0x8D839E), 1)
     drawLanguage(g)
-    LevelMap.title(g.locale,g.menuHover)
 end
 
 local function statBar(g: Game, x: number, y: number, label: string, v: number, c: Color)
@@ -2731,7 +2729,6 @@ function pointerExit(self: Main, e: PointerEvent)
 end
 
 function keyboardEvent(self: Main, e: KeyboardEvent): boolean
-    if e.key==77 and self.g.mode=='title' and e.phase=='down' then toMap(self.g);return true end
     if e.key==82 and self.g.mode=='map' then
         if e.phase=='down' and not self.g.resetConfirm then menuAction(self.g,'reset') end
         return true

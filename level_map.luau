@@ -12,7 +12,7 @@ local MUTED=G.hex(0x9E94B0)
 local RED=G.hex(0xFF6375)
 local nodes={{180,356},{486,260},{792,356},{1098,260}}
 local bosses={'CINDERBLOCK','MAMMOTH','JINX','SLADE'}
-M.bounds={map={x=24,y=28,w=222,h=54},reset={x=1002,y=32,w=242,h=48},
+M.bounds={reset={x=1002,y=32,w=242,h=48},
     back={x=34,y=651,w=176,h=42},play={x=1004,y=552,w=216,h=52},
     keep={x=388,y=416,w=234,h=52},confirm={x=656,y=416,w=234,h=52}}
 local function text(locale:L.Locale,s:string,x:number,y:number,size:number,c:Color,align:number?,width:number?,ink:Color?)
@@ -28,12 +28,9 @@ local function button(locale:L.Locale,key:string,label:string,hover:string,fill:
     G.rrect(b.x,b.y,b.w,b.h,8,color,2)
     text(locale,label,b.x+b.w/2,b.y+(b.h-17)/2,17,if disabled then MUTED else INK,.5,b.w-24,color)
 end
-function M.title(locale:L.Locale,hover:string)
-    button(locale,'map','LEVEL MAP',hover,CYAN)
-end
 function M.actionAt(mode:string,x:number,y:number,confirm:boolean):string?
     for key,b in M.bounds do
-        local allowed=if mode=='title' then key=='map' elseif mode=='map' then
+        local allowed=if mode=='map' then
             (if confirm then key=='keep' or key=='confirm' else key=='reset' or key=='back' or key=='play') else false
         if allowed and x>=b.x and x<=b.x+b.w and y>=b.y and y<=b.y+b.h then return key end
     end
