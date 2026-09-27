@@ -7,6 +7,7 @@
 -- Fixed shapes (circle, square, glyphs) are built once and placed with
 -- transforms, which keeps the per-frame path count low.
 local font = require('font')
+local tcGlyphs = require('tc_glyphs')
 
 local G = {}
 
@@ -31,6 +32,7 @@ local poolIdx = 0
 local unitCircle = Path.new()
 local unitSquare = Path.new()
 local glyphPaths: { [string]: Path } = {}
+local tcPaths: { [number]: Path } = {}
 
 G.INK = Color.rgb(24, 14, 36)
 G.WHITE = Color.rgb(255, 255, 255)
@@ -437,12 +439,48 @@ end
 
 -- Text -----------------------------------------------------------------------
 
-function G.textWidth(s: string, size: number): number
-    local n = #s
-    if n == 0 then
-        return 0
+-- Decode each outline once, on first use. The shipped WOFF2 subset is converted
+-- to these paths at authoring time because Renderer has no font/text API.
+local function tcPath(code: number): Path?
+    if tcPaths[code] then return tcPaths[code] end
+    local data = tcGlyphs[code]
+    if data == nil then return nil end
+    local tokens = string.split(data, ' ')
+    local path = Path.new()
+    local i = 1
+    while i <= #tokens do
+        local command = tokens[i]
+        i += 1
+        if command == 'Z' then
+            path:close()
+        elseif command ~= '' then
+            local a = Vector.xy(tonumber(tokens[i]) or 0, tonumber(tokens[i + 1]) or 0)
+            i += 2
+            if command == 'M' then path:moveTo(a)
+            elseif command == 'L' then path:lineTo(a)
+            else
+                local b = Vector.xy(tonumber(tokens[i]) or 0, tonumber(tokens[i + 1]) or 0)
+                i += 2
+                if command == 'Q' then path:quadTo(a, b)
+                elseif command == 'C' then
+                    local c = Vector.xy(tonumber(tokens[i]) or 0, tonumber(tokens[i + 1]) or 0)
+                    i += 2
+                    path:cubicTo(a, b, c)
+                end
+            end
+        end
     end
-    return (n * font.ADVANCE - 1.4) * size / 6
+    tcPaths[code] = path
+    return path
+end
+
+function G.textWidth(s: string, size: number): number
+    local width, trailing = 0, 0
+    for _, code in utf8.codes(s) do
+        width += if code < 128 then font.ADVANCE else 6.3
+        trailing = if code < 128 then 1.4 else .3
+    end
+    return math.max(0, width - trailing) * size / 6
 end
 
 -- Draw `s` with its top edge at y. align: 0 left, 0.5 centre, 1 right.
@@ -452,25 +490,30 @@ function G.text(s: string, x: number, y: number, size: number, c: Color, align: 
     local w = G.textWidth(s, size)
     local x0 = x - w * (align or 0)
     local th = 1.15
+    local chinese = #s ~= utf8.len(s)
     R:save()
-    R:transform(Mat2D.values(sc, 0, -sc * 0.16, sc, x0 + sc * 0.5, y))
+    R:transform(Mat2D.values(sc, 0, if chinese then 0 else -sc * 0.16, sc, x0 + sc * 0.5, y))
     local up = string.upper(s)
     for pass = 1, 2 do
-        if pass == 1 then
-            strokePaint.color = ink or G.INK
-            strokePaint.thickness = th + 5 / sc
-        else
-            strokePaint.color = c
-            strokePaint.thickness = th
-        end
-        for i = 1, #up do
-            local g = glyphPaths[string.sub(up, i, i)]
+        local cursor = 0
+        for _, code in utf8.codes(up) do
+            local isTC = code >= 128
+            local g = if isTC then tcPath(code) else glyphPaths[string.char(code)]
+            if isTC and not g then g = glyphPaths['?'] end
             if g then
                 R:save()
-                R:transform(Mat2D.withTranslation((i - 1) * font.ADVANCE, 0))
-                R:drawPath(g, strokePaint)
+                R:transform(Mat2D.withTranslation(cursor, 0))
+                if isTC and pass == 2 then
+                    fillPaint.color = c
+                    R:drawPath(g, fillPaint)
+                else
+                    strokePaint.color = if pass == 1 then ink or G.INK else c
+                    strokePaint.thickness = if isTC then math.min(.45, 4 / sc) elseif pass == 1 then th + 5 / sc else th
+                    R:drawPath(g, strokePaint)
+                end
                 R:restore()
             end
+            cursor += if isTC then 6.3 else font.ADVANCE
         end
     end
     R:restore()
@@ -485,14 +528,19 @@ function G.label(s: string, x: number, y: number, size: number, c: Color, align:
     strokePaint.color = c
     strokePaint.thickness = 1.3
     local up = string.upper(s)
-    for i = 1, #up do
-        local g = glyphPaths[string.sub(up, i, i)]
+    local cursor = 0
+    for _, code in utf8.codes(up) do
+        local isTC = code >= 128
+        local g = if isTC then tcPath(code) else glyphPaths[string.char(code)]
+        if isTC and not g then g = glyphPaths['?'] end
         if g then
             R:save()
-            R:transform(Mat2D.withTranslation((i - 1) * font.ADVANCE, 0))
-            R:drawPath(g, strokePaint)
+            R:transform(Mat2D.withTranslation(cursor, 0))
+            fillPaint.color = c
+            R:drawPath(g, if isTC then fillPaint else strokePaint)
             R:restore()
         end
+        cursor += if isTC then 6.3 else font.ADVANCE
     end
     R:restore()
 end

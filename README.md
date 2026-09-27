@@ -96,6 +96,13 @@ marked slam areas. The HUD tracks the stage, local wave, and enemies remaining.
 
 ## Files
 
+English and **繁體中文（台灣）** are available from the main menu's top-right
+selector. Click a language, press **Tab**, or press controller **LB**. The choice
+stays active throughout the current session. Chinese uses the **Noto Sans TC**
+Google Fonts web font, bundled for offline Rive rendering. Taiwan TV terminology,
+source research and font regeneration details are in
+[docs/localization-zh-TW.md](docs/localization-zh-TW.md).
+
 | File | What it holds |
 |---|---|
 | `main.luau` | Rive layout entry point |
@@ -114,9 +121,14 @@ marked slam areas. The HUD tracks the stage, local wave, and enemies remaining.
 | `motion.luau` | anticipation, impact and recovery timing shared by the game and pose review |
 | `gfx.luau` | drawing primitives: path pool, shapes, clipping, text |
 | `font.luau` | the stroke font, since Rive scripts have no text API |
+| `localization.luau` | Taiwan translations and named text templates |
+| `localization_test.luau` | language input, glyph coverage and translated campaign regressions |
+| `tc_glyphs.luau` | generated Noto Sans TC vector glyphs from the bundled WOFF2 |
 
 To test a later wave, set `START_CHECKPOINT` near the top of `game.luau`.
 
 ### Movement feel
 
 Tap gamepad **A** (keyboard **K / Space**) for a short hop, or hold it for a higher jump. A jump pressed just before touching down is buffered. Press **X** (**J**) in the air for the hero's aerial strike. Takeoff has a brief crouch; rising, apex, falling and landing poses are distinct. Landing recovery is visual and does not lock movement or attacks. Robin and Beast Boy use springy strides, Cyborg has a heavier gait, and Starfire and Raven glide. Normal attacks retain their character-specific combos with two-handed staff grips, anticipation and recovery.
+
+Movement uses broad, tapered limbs, a forward-leading chest, and a steady head. Human leg proportions keep the supporting leg extended, with a low foot pickup and a modest knee bend during the passing step. Shoes pivot at the ankle and keep a flat sole while planted; step timing follows travel distance. Takeoff and landing compress the torso; capes and hair sweep behind the motion. Starfire flies with one knee raised and one leg trailing, while Raven opens her cloak into a flowing silhouette. Dashes leave two brief pose echoes, and normal attacks have larger body follow-through and character-colored swing arcs.

@@ -5,6 +5,7 @@
 -- The Titans live in heroes.luau; this file draws the villains, props,
 -- effects and the Jump City stage.
 local G = require('gfx')
+local L = require('localization')
 local P = require('pose')
 local HX = require('heroes')
 
@@ -565,7 +566,7 @@ local FACADES = {
 local SIGNS = { 'PIZZA', 'ARCADE', 'COMICS', 'JUMP CITY', 'TACOS', 'MUSIC', 'TOWER GYM', 'DONUTS' }
 
 -- The later stages share floor coordinates but each has its own architecture.
-local function themedStage(camX: number, t: number, theme: string)
+local function themedStage(camX: number, t: number, theme: string, locale: L.Locale)
     local docks, foundry = theme == 'docks', theme == 'foundry'
     local accent = if docks then H(0x64D6D2) elseif foundry then H(0xF390DA) else H(0xF69B49)
     G.vgrad(0,0,G.W,460,if docks then H(0x102C46) elseif foundry then H(0x221630) else H(0x100E29),if docks then H(0x428895) elseif foundry then H(0x71395D) else H(0x57436E))
@@ -598,7 +599,7 @@ local function themedStage(camX: number, t: number, theme: string)
             local col=if i%2==0 then H(0x386D78) else H(0x9D5844)
             G.rrect(x,330,280,112,4,col,3)
             for k=1,12 do G.line(x+k*21,339,x+k*21,430,3,G.shade(col,-.25)) end
-            G.text('HIVE CARGO',x+140,371,19,H(0xDEDDD1),.5)
+            G.text(L.text(locale, 'HIVE CARGO'),x+140,371,19,H(0xDEDDD1),.5)
             G.rect(x+15,417,30,6,accent)
         end
     elseif foundry then
@@ -622,7 +623,7 @@ local function themedStage(camX: number, t: number, theme: string)
             G.circle(x+245,252,5,H(0x7DE7D1))
         end
         G.rrect(450,188,380,41,7,H(0x211D30),2)
-        G.text('H.I.V.E. HEX REACTOR',640,200,19,accent,.5)
+        G.text(L.text(locale, 'H.I.V.E. HEX REACTOR'),640,200,19,accent,.5)
     else
         for i=0,4 do
             local x=(i*365-camX*.3)%1825-365
@@ -640,7 +641,7 @@ local function themedStage(camX: number, t: number, theme: string)
             G.circle(x+260,176,5,H(0xFD5A57))
         end
         G.rrect(497,217,286,57,8,H(0x201C2B),3)
-        G.text('SLADE INDUSTRIES',640,237,20,accent,.5)
+        G.text(L.text(locale, 'SLADE INDUSTRIES'),640,237,20,accent,.5)
     end
     G.rect(0,439,G.W,31,H(0x343548))
     G.line(0,440,G.W,440,5,accent)
@@ -657,9 +658,9 @@ local function themedStage(camX: number, t: number, theme: string)
     end
 end
 
-function A.stage(camX: number, t: number, theme: string?)
+function A.stage(camX: number, t: number, theme: string?, locale: L.Locale?)
     if theme and theme ~= 'city' then
-        themedStage(camX, t, theme)
+        themedStage(camX, t, theme, locale or 'en')
         return
     end
     local W = G.W
@@ -746,7 +747,7 @@ function A.stage(camX: number, t: number, theme: string?)
         if hash(i, 11) > 0.35 then
             local sign = SIGNS[(math.floor(hash(i, 12) * #SIGNS)) + 1]
             G.rrect(x + 40, top - 30, 240, 44, 8, H(0x1E1633), 2)
-            G.text(sign, x + 160, top - 20, 22, H(0xFFE14D), 0.5)
+            G.text(L.text(locale or 'en', sign), x + 160, top - 20, 22, H(0xFFE14D), 0.5)
         end
     end
     -- sidewalk

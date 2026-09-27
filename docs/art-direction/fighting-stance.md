@@ -4,7 +4,7 @@ Research: Capcom's 2017 GDC presentation, [Art Direction of Street Fighter V](ht
 
 The presentation distinguishes ordinary animation from poses adjusted for the battle camera. The comparison on slides 43–44 shows how a pose can be opened toward the battle view so the chest and limbs remain readable.
 
-Our application of that principle is an art-direction choice: a three-quarter character drawing, rather than a strict 90-degree profile. This game uses scripted 2D vector artwork, so there is no 3D camera to rotate. Gameplay heads show both eyes with a smaller far eye and gaze toward the opponent. Wider chest planes, separated shoulders, an offset costume seam, and staggered feet reveal depth. Both arms retain the corrected elbow bend. The entire fighter mirrors once for left-facing play.
+Our application of that principle is an art-direction choice: a three-quarter character drawing, rather than a strict 90-degree profile. This game uses scripted 2D vector artwork, so there is no 3D camera to rotate. Gameplay heads show both eyes with a smaller far eye and gaze toward the opponent. Side shading, separated shoulders, an offset costume seam, and staggered feet reveal depth. Torso proportions come from the start-menu model instead of widening the chest for gameplay. Both arms retain the corrected elbow bend. The entire fighter mirrors once for left-facing play.
 
 Title and selection screens retain their frontal artwork. Combat input, lane movement, ranges and facing logic stay the same. Projectile attachments follow the new shoulder coordinates; Cyborg's ultimate beam uses the updated cannon origin.
 
@@ -18,3 +18,16 @@ Visual references inspected in September 2026:
 Corrections derived from those images: Robin has fewer broad hair peaks, a central widow's peak and balanced mask eyes; Cyborg has a flatter crown, strong jaw, black upper limbs and broad mechanical forearms; Starfire has two rounded bangs, evenly proportioned eyes and long silver gauntlets; Raven's hood casts the characteristic black shadow around her eyes; Beast Boy has a swept fringe and long pointed ears. Gameplay fists, glove cuffs and boots are oriented with the limbs rather than rendered as upright circles. Hair and cape roots use the torso lean transform so they stay attached during attacks.
 
 These are hand-authored vector adaptations. Online reference imagery is not bundled in the game. Title/select drawings retain their existing frontal view.
+
+## Menu proportions are the shared model
+
+All five characters use the same base torso or cloak outline in menus and play.
+Robin's tunic, badge and sleeves; Starfire's torso, collar and crop top; Beast Boy's
+suit; and Cyborg's torso and chest plate each have one drawing shared by both views.
+Raven's cloak shares its shoulder width and resting bell shape; movement deforms
+the trailing hem. Cyborg's turned head and Raven's turned hood are normalized to
+the menu model's size. Hip/shoulder heights, gameplay poses, cloth motion and
+combat timing retain their existing animation behavior.
+
+Visual verification uses equal-scale menu, idle, running and attack drawings for
+every character in both facing directions, followed by native gameplay captures.

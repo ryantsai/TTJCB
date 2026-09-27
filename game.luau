@@ -16,6 +16,7 @@ local Motion = require('motion')
 local Attacks = require('attacks')
 local Powers = require('powers')
 local Campaign = require('campaign')
+local L = require('localization')
 
 local W = G.W
 local H = G.H
@@ -206,6 +207,8 @@ type Fx = {
 type Pickup = { x: number, y: number, t: number, dead: boolean }
 
 type Game = {
+    locale: L.Locale,
+    languageHover: number,
     mode: string, -- title, select, play, over, win
     stage: number,
     healthPlayers: number,
@@ -239,9 +242,23 @@ type Game = {
 export type Main = {
     g: Game,
     size: Vector,
+    languagePointer: number,
+    languageTarget: L.Locale?,
+    languageKeyHeld: boolean,
 }
 
 -- Helpers ------------------------------------------------------------------------
+
+local function tr(g: Game, source: string): string
+    return L.text(g.locale, source)
+end
+
+local function uiText(g: Game, source: string, x: number, y: number, size: number, color: Color, align: number?, ink: Color?)
+    local value = tr(g, source)
+    -- Dense CJK strokes need a larger minimum than the old ASCII stroke face.
+    local fontSize = if #value ~= utf8.len(value) then math.max(14, size) else size
+    G.text(value, x, y, fontSize, color, align, ink)
+end
 
 local function rnd(a: number, b: number): number
     return a + math.random() * (b - a)
@@ -267,6 +284,7 @@ local function newGame(): Game
         table.insert(slots, newSlot(i))
     end
     return {
+        locale = 'en', languageHover = 0,
         mode = 'title', stage = 1, healthPlayers = 1, wavePlayers = 1, modeT = 0, t = 0, devs = {}, slots = slots, fighters = {}, shots = {},
         fx = {}, pickups = {}, camX = 0, lockX = -1, cp = 1, pending = {}, waveT = 0, goT = 0,
         shake = 0, hitstop = 0, paused = false, nextId = 1, continueT = 0, banner = '',
@@ -1191,7 +1209,7 @@ local function updatePose(g: Game, f: Fighter, dt: number)
     local walking = (f.state == 'walk' or f.state == 'idle' or dashing) and speed > 20
     p.speed=math.clamp(speed/f.speed,0,1)
     p.walk += ((if walking then p.speed else 0) - p.walk) * math.min(1, dt * 14)
-    local stride=if f.kind=='cyborg' then 27 elseif f.kind=='beast' then 19 else 22
+    local stride=if f.team==1 then Motion.gait(f.kind,p.dash) else 22
     if walking then p.phase+=speed*dt*.56*math.pi/(stride*f.scale) end
     p.rise=math.clamp(f.vz/f.jump,-1,1)
     p.airTime=f.airTime
@@ -1285,7 +1303,7 @@ local function spawnEnemy(g: Game, kind: string, side: number)
     f.facing = -side
     if isBoss(kind) then
         g.boss = f
-        g.banner = ENEMIES[kind].name .. '!'
+        g.banner = tr(g, ENEMIES[kind].name) .. (if g.locale == 'zh-TW' then '！' else '!')
         g.bannerSub = if kind == 'boss' then 'JUMP OVER THE SHOCKWAVE' elseif kind == 'mammoth' then 'SIDESTEP HIS CHARGE' elseif kind == 'jinx' then 'DODGE THE HEX VOLLEY' else 'THE FINAL SHOWDOWN'
         g.bannerT = 2.2
         g.shake = 0.4
@@ -1378,7 +1396,7 @@ local function startGame(g: Game)
     g.healthPlayers = math.max(1, activeSlots(g))
     g.wavePlayers = 1
     g.banner = 'TITANS, GO!'
-    g.bannerSub = Campaign.stages[g.stage].name .. ' / ' .. Campaign.stages[g.stage].subtitle
+    g.bannerSub = tr(g, Campaign.stages[g.stage].name) .. ' / ' .. tr(g, Campaign.stages[g.stage].subtitle)
     g.bannerT = 2.4
     g.goT = 5
 end
@@ -1735,7 +1753,7 @@ local function updatePlay(g: Game, dt: number)
                     end
                 end
                 g.banner = Campaign.stages[g.stage].name
-                g.bannerSub = 'STAGE ' .. g.stage .. ' / HEALTH AND ENERGY RESTORED'
+                g.bannerSub = L.format(g.locale, 'STAGE {stage} / HEALTH AND ENERGY RESTORED', { stage = g.stage })
                 g.bannerT = 3
                 g.goT = 4
             else
@@ -1812,6 +1830,18 @@ local function drawFighter(g: Game, f: Fighter)
     local sy = f.y - f.z
     if f.team == 1 and (f.state == 'dash' or f.state == 'dashatk') then
         local color = HEROES[f.hero].color
+        -- Two short pose echoes follow the actual dash vector, including lanes.
+        for i = 2, 1, -1 do
+            G.save()
+            G.translate(sx-f.dashX*i*28,sy-f.dashY*i*28)
+            G.scale(f.facing*f.scale,f.scale)
+            G.tint(color)
+            G.opacity(.16/i)
+            local echo=table.clone(f.pose)
+            echo.phase-=i*.35
+            A.fighter(f.kind,echo)
+            G.restore()
+        end
         for i = 1, 4 do
             local offset = 18 + i*11
             local x = sx - f.dashX*offset
@@ -1840,9 +1870,9 @@ local function drawFighter(g: Game, f: Fighter)
             local radius = if pulse then 165 else 250
             local cx = sx + (if pulse then 0 else f.facing * 80)
             G.oellipse(cx, f.y, radius, if pulse then 65 else 100, G.fade(G.hex(0xFF4D5E), .14), 2)
-            G.text('JUMP!', cx, f.y + 12, 14, G.hex(0xFFE14D), .5)
+            uiText(g, 'JUMP!', cx, f.y + 12, 14, G.hex(0xFFE14D), .5)
         elseif (f.state == 'shoot' and f.st < f.windup) or (f.state == 'charge' and f.st < .45) then
-            G.text(if f.state == 'shoot' then '!' else 'RUSH!', sx, sy - A.height(f.kind) * f.scale - 28, 22, G.hex(0xFFE14D), .5)
+            uiText(g, if f.state == 'shoot' then '!' else 'RUSH!', sx, sy - A.height(f.kind) * f.scale - 28, 22, G.hex(0xFFE14D), .5)
         end
     end
 
@@ -1858,7 +1888,7 @@ local function drawFighter(g: Game, f: Fighter)
         local s = g.slots[f.slot]
         local ty = sy - top - 30
         G.poly({ sx - 7, ty + 16, sx + 7, ty + 16, sx, ty + 24 }, s.color, 1.5)
-        G.text(`P{f.slot}`, sx, ty - 2, 14, s.color, 0.5)
+        uiText(g, `P{f.slot}`, sx, ty - 2, 14, s.color, 0.5)
     elseif not isBoss(f.kind) and f.hitT < 2 and f.state ~= 'ko' then
         local w = 60 * f.scale
         local by = sy - top - 16
@@ -1882,7 +1912,7 @@ end
 type DrawItem = { y: number, kind: number, idx: number }
 
 local function drawWorld(g: Game)
-    A.stage(g.camX, g.t, Campaign.stages[g.stage].theme)
+    A.stage(g.camX, g.t, Campaign.stages[g.stage].theme, g.locale)
 
     -- ground effects and shadows first
     for _, e in g.fx do
@@ -1957,7 +1987,7 @@ local function drawWorld(g: Game)
             local sz = e.size * (0.6 + 0.4 * pop)
             G.save()
             G.opacity(1 - math.max(0, k - 0.7) / 0.3)
-            G.text(e.text, sx, sy - k * 30, sz, e.color, 0.5)
+            uiText(g, e.text, sx, sy - k * 30, sz, e.color, 0.5)
             G.restore()
         end
     end
@@ -1983,7 +2013,7 @@ local function drawHud(g: Game)
         G.rrect(x + 3, y + 3, w - 6, 6, 3, s.color)
         if s.dev == '' then
             if math.floor(g.t * 2) % 2 == 0 then
-                G.text(`P{s.idx} PRESS START`, x + w / 2, y + 34, 18, s.color, 0.5)
+                uiText(g, L.format(g.locale, 'P{player} PRESS START', { player = s.idx }), x + w / 2, y + 34, 18, s.color, 0.5)
             end
         else
             local h = HEROES[s.hero]
@@ -1993,11 +2023,11 @@ local function drawHud(g: Game)
             G.opacity(if s.out then 0.4 else 1)
             A.portrait(h.key, x + 40, y + 48, 0.9, g.t)
             G.restore()
-            G.text(h.name, x + 78, y + 16, 15, G.WHITE)
-            G.text(`{s.score}`, x + w - 12, y + 16, 14, G.hex(0xFFE14D), 1)
+            uiText(g, h.name, x + 78, y + 16, 15, G.WHITE)
+            uiText(g, `{s.score}`, x + w - 12, y + 16, 14, G.hex(0xFFE14D), 1)
             if s.out then
                 if math.floor(g.t * 2) % 2 == 0 then
-                    G.text('CONTINUE? START', x + 78, y + 44, 14, s.color)
+                    uiText(g, 'CONTINUE? START', x + 78, y + 44, 14, s.color)
                 end
             else
                 local f = s.fighter
@@ -2010,23 +2040,23 @@ local function drawHud(g: Game)
                     ec = G.hex(0xFF4D5E)
                 end
                 bar(x + 78, y + 60, 150, 7, s.energy / 100, ec)
-                G.text('B 30', x + 78, y + 76, 9, if s.energy >= 30 then G.hex(0x7FD8FF) else G.hex(0x655974))
-                G.text('Y 40', x + 133, y + 76, 9, if s.energy >= 40 then G.hex(0x7FD8FF) else G.hex(0x655974))
-                G.text('RT 100', x + 190, y + 76, 9, if s.energy >= 100 then G.hex(0xFFE14D) else G.hex(0x655974))
-                G.text(`x{s.lives}`, x + w - 12, y + 57, 13, G.WHITE, 1)
+                uiText(g, 'B 30', x + 78, y + 76, 9, if s.energy >= 30 then G.hex(0x7FD8FF) else G.hex(0x655974))
+                uiText(g, 'Y 40', x + 133, y + 76, 9, if s.energy >= 40 then G.hex(0x7FD8FF) else G.hex(0x655974))
+                uiText(g, 'RT 100', x + 190, y + 76, 9, if s.energy >= 100 then G.hex(0xFFE14D) else G.hex(0x655974))
+                uiText(g, `x{s.lives}`, x + w - 12, y + 57, 13, G.WHITE, 1)
             end
         end
     end
 
     local cp = CHECKPOINTS[math.min(g.cp, #CHECKPOINTS)]
     G.rrect(16, 114, 420, 34, 8, G.fade(G.INK, .88))
-    G.text(`{g.stage}/4  {Campaign.stages[g.stage].name}  -  WAVE {cp.wave}/4`, 30, 124, 13, G.hex(0xFFE14D))
+    uiText(g, L.format(g.locale, '{stage}/4  {name}  -  WAVE {wave}/4', { stage = g.stage, name = tr(g, Campaign.stages[g.stage].name), wave = cp.wave }), 30, 124, 13, G.hex(0xFFE14D))
     if g.lockX >= 0 then
-        G.text(`{math.max(1, activeSlots(g))}P  ENEMIES {enemiesLeft(g) + #g.pending}`, W - 26, 124, 14, G.WHITE, 1)
+        uiText(g, L.format(g.locale, '{players}P  ENEMIES {count}', { players = math.max(1, activeSlots(g)), count = enemiesLeft(g) + #g.pending }), W - 26, 124, 14, G.WHITE, 1)
     end
     local b = g.boss
     if b and not b.removed then
-        G.text(ENEMIES[b.kind].name, W / 2, H - 58, 18, G.hex(0xFFD23A), 0.5)
+        uiText(g, ENEMIES[b.kind].name, W / 2, H - 58, 18, G.hex(0xFFD23A), 0.5)
         bar(W / 2 - 300, H - 32, 600, 16, b.hp / b.maxHp, G.hex(0xFF7A2E))
     end
 end
@@ -2042,13 +2072,27 @@ local function drawBanner(g: Game)
     G.opacity(a)
     G.translate(-slide * 400, 0)
     G.poly({ 0, 260, W, 240, W, 360, 0, 380 }, G.fade(G.hex(0x1C1330), 0.85))
-    G.text(g.banner, W / 2, 262, 64, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
-    G.text(g.bannerSub, W / 2, 340, 20, G.WHITE, 0.5)
+    uiText(g, g.banner, W / 2, 262, 64, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+    uiText(g, g.bannerSub, W / 2, 340, 20, G.WHITE, 0.5)
     G.restore()
 end
 
+local LANGUAGE_X, LANGUAGE_Y = 950, 28
+local function drawLanguage(g: Game)
+    G.rrect(LANGUAGE_X, LANGUAGE_Y, 310, 58, 12, G.hex(0x1C1330), 2)
+    for i, locale in { 'en', 'zh-TW' } do
+        local x = LANGUAGE_X + (if i == 1 then 4 else 124)
+        local w = if i == 1 then 116 else 182
+        local selected = g.locale == locale
+        local background = if selected then G.hex(0xFFE14D) elseif g.languageHover == i then G.hex(0x44315C) else G.hex(0x241A37)
+        G.rrect(x, LANGUAGE_Y + 4, w, 50, 8, background)
+        G.text(if i == 1 then 'ENGLISH' else L.languageLabel, x + w / 2, LANGUAGE_Y + 19, if i == 1 then 14 else 18, if selected then G.INK else G.WHITE, .5, background)
+    end
+    uiText(g, 'TAB / LB: LANGUAGE', LANGUAGE_X + 304, LANGUAGE_Y - 23, 11, G.hex(0xCFC6D8), 1)
+end
+
 local function drawTitle(g: Game)
-    A.stage((g.t * 40) % 4000, g.t)
+    A.stage((g.t * 40) % 4000, g.t, nil, g.locale)
     G.save()
     G.opacity(0.45)
     G.rect(0, 0, W, H, G.hex(0x140C24))
@@ -2058,11 +2102,11 @@ local function drawTitle(g: Game)
     G.vgrad(0, 0, W, 330, G.fade(G.hex(0x140C24), 0.85), G.fade(G.hex(0x140C24), 0))
     local bob = math.sin(g.t * 2) * 4
     G.save()
-    G.translate(W / 2, 110 + bob)
+    G.translate(W / 2, 134 + bob)
     G.rotate(-0.04)
-    G.text('TEEN TITANS', 0, -10, 96, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+    uiText(g, 'TEEN TITANS', 0, -10, 96, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
     G.poly({ -250, 104, 250, 96, 262, 150, -262, 156 }, G.hex(0xD7263D), 3)
-    G.text('JUMP CITY BRAWL', 0, 110, 34, G.WHITE, 0.5)
+    uiText(g, 'JUMP CITY BRAWL', 0, 110, 34, G.WHITE, 0.5)
     G.restore()
 
     -- the team
@@ -2076,11 +2120,11 @@ local function drawTitle(g: Game)
         G.scale(1.5, 1.5)
         A.fighter(h.key, p, true)
         G.restore()
-        G.text(h.name, x, 578, 16, h.color, 0.5)
+        uiText(g, h.name, x, 578, 16, h.color, 0.5)
     end
 
     if math.floor(g.t * 2.5) % 2 == 0 then
-        G.text('PRESS START', W / 2, 628, 36, G.WHITE, 0.5)
+        uiText(g, 'PRESS START', W / 2, 628, 36, G.WHITE, 0.5)
     end
     local pads = 0
     for id, _ in g.devs do
@@ -2088,23 +2132,24 @@ local function drawTitle(g: Game)
             pads += 1
         end
     end
-    G.text('X: ATTACK   A: JUMP   B: SPECIAL   Y: SECONDARY   RT: ULTIMATE   START: JOIN / PAUSE', W / 2, 676, 14, G.hex(0xCFC6D8), 0.5)
-    G.text(`1-4 PLAYERS   CONTROLLERS CONNECTED: {pads}`, W / 2, 698, 12, G.hex(0x8D839E), 0.5)
-    G.text('UNOFFICIAL FAN GAME', W - 16, H - 22, 11, G.hex(0x8D839E), 1)
+    uiText(g, 'X: ATTACK   A: JUMP   B: SPECIAL   Y: SECONDARY   RT: ULTIMATE   START: JOIN / PAUSE', W / 2, 676, 14, G.hex(0xCFC6D8), 0.5)
+    uiText(g, L.format(g.locale, '1-4 PLAYERS   CONTROLLERS CONNECTED: {count}', { count = pads }), W / 2, 698, 12, G.hex(0x8D839E), 0.5)
+    uiText(g, 'UNOFFICIAL FAN GAME', W - 16, H - 22, 11, G.hex(0x8D839E), 1)
+    drawLanguage(g)
 end
 
-local function statBar(x: number, y: number, label: string, v: number, c: Color)
-    G.text(label, x, y, 12, G.hex(0xCFC6D8))
+local function statBar(g: Game, x: number, y: number, label: string, v: number, c: Color)
+    uiText(g, label, x, y, 12, G.hex(0xCFC6D8))
     bar(x + 60, y + 1, 150, 9, v, c)
 end
 
 local function drawSelect(g: Game)
-    A.stage(1800 + math.sin(g.t * 0.2) * 200, g.t)
+    A.stage(1800 + math.sin(g.t * 0.2) * 200, g.t, nil, g.locale)
     G.save()
     G.opacity(0.6)
     G.rect(0, 0, W, H, G.hex(0x140C24))
     G.restore()
-    G.text('CHOOSE YOUR TITAN', W / 2, 26, 44, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+    uiText(g, 'CHOOSE YOUR TITAN', W / 2, 26, 44, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
 
     for _, s in g.slots do
         local x = 24 + (s.idx - 1) * 312
@@ -2116,44 +2161,44 @@ local function drawSelect(g: Game)
         G.rrect(x, y, w, h, 16, G.hex(0x1C1330), 3)
         G.restore()
         G.rrect(x + 4, y + 4, w - 8, 34, 12, s.color)
-        G.text(`PLAYER {s.idx}`, x + w / 2, y + 12, 18, G.WHITE, 0.5)
+        uiText(g, L.format(g.locale, 'PLAYER {player}', { player = s.idx }), x + w / 2, y + 12, 18, G.WHITE, 0.5)
         if s.dev == '' then
             if math.floor(g.t * 2) % 2 == 0 then
-                G.text('PRESS START', x + w / 2, y + 200, 22, s.color, 0.5)
+                uiText(g, 'PRESS START', x + w / 2, y + 200, 22, s.color, 0.5)
             end
-            G.text('TO JOIN', x + w / 2, y + 234, 16, G.hex(0x8D839E), 0.5)
+            uiText(g, 'TO JOIN', x + w / 2, y + 234, 16, G.hex(0x8D839E), 0.5)
         else
             local hero = HEROES[s.hero]
             local d = g.devs[s.dev]
-            G.text(if d then d.label else '', x + w / 2, y + 48, 12, G.hex(0x8D839E), 0.5)
+            uiText(g, if d then (if string.sub(d.id, 1, 3) == 'pad' then L.format(g.locale, 'CONTROLLER {id}', { id = string.sub(d.id, 4) }) else tr(g, d.label)) else '', x + w / 2, y + 48, 12, G.hex(0x8D839E), 0.5)
             G.glow(x + w / 2, y + 220, 120, hero.color, 0.5)
             local p = A.newPose()
             p.t = g.t + s.idx
-            A.shadow(x + w / 2, y + 300, 44, 0)
+            A.shadow(x + w / 2, y + 310, 44, 0)
             G.save()
-            G.translate(x + w / 2, y + 300)
+            G.translate(x + w / 2, y + 310)
             G.scale(1.65, 1.65)
             A.fighter(hero.key, p, true)
             G.restore()
             local taken = heroTaken(g, s.hero, s)
-            G.text(hero.name, x + w / 2, y + 318, 26, if taken then G.hex(0x8D839E) else hero.color, 0.5)
-            statBar(x + 30, y + 360, 'POWER', (hero.power - 0.8) / 0.5, G.hex(0xFF4D5E))
-            statBar(x + 30, y + 380, 'SPEED', (hero.speed - 180) / 120, G.hex(0x3BD16F))
-            statBar(x + 30, y + 400, 'HEALTH', (hero.hp - 80) / 70, G.hex(0x3A9BFF))
-            G.text('B: ' .. hero.special, x + w / 2, y + 423, 10, G.hex(0xFFE14D), 0.5)
-            G.text('Y: ' .. Powers.secondary[hero.key].name, x + w / 2, y + 442, 10, G.hex(0x7FD8FF), 0.5)
-            G.text('RT: ' .. Powers.ultimate[hero.key].name, x + w / 2, y + 461, 10, G.hex(0xD5AEFF), 0.5)
+            uiText(g, hero.name, x + w / 2, y + 318, 26, if taken then G.hex(0x8D839E) else hero.color, 0.5)
+            statBar(g, x + 30, y + 360, 'POWER', (hero.power - 0.8) / 0.5, G.hex(0xFF4D5E))
+            statBar(g, x + 30, y + 380, 'SPEED', (hero.speed - 180) / 120, G.hex(0x3BD16F))
+            statBar(g, x + 30, y + 400, 'HEALTH', (hero.hp - 80) / 70, G.hex(0x3A9BFF))
+            uiText(g, 'B: ' .. tr(g, hero.special), x + w / 2, y + 423, 10, G.hex(0xFFE14D), 0.5)
+            uiText(g, 'Y: ' .. tr(g, Powers.secondary[hero.key].name), x + w / 2, y + 442, 10, G.hex(0x7FD8FF), 0.5)
+            uiText(g, 'RT: ' .. tr(g, Powers.ultimate[hero.key].name), x + w / 2, y + 461, 10, G.hex(0xD5AEFF), 0.5)
             if s.locked then
                 G.save()
                 G.translate(x + w / 2, y + 262)
                 G.rotate(-0.12)
                 G.rrect(-86, -26, 172, 52, 10, G.hex(0xFFE14D), 3)
-                G.text('READY!', 0, -15, 30, G.hex(0xB0122A), 0.5, G.hex(0xFFE14D))
+                uiText(g, 'READY!', 0, -15, 30, G.hex(0xB0122A), 0.5, G.hex(0xFFE14D))
                 G.restore()
             else
                 local wob = math.sin(g.t * 6) * 4
-                G.text('<', x + 20 - wob, y + 200, 34, s.color)
-                G.text('>', x + w - 44 + wob, y + 200, 34, s.color)
+                uiText(g, '<', x + 20 - wob, y + 200, 34, s.color)
+                uiText(g, '>', x + w - 44 + wob, y + 200, 34, s.color)
             end
         end
     end
@@ -2177,15 +2222,15 @@ local function drawSelect(g: Game)
         local n = 0
         for _, s in g.slots do
             if s.dev ~= '' and s.hero == i and not s.locked then
-                G.text(`P{s.idx}`, x - 30 + n * 22, y + 42, 12, s.color)
+                uiText(g, `P{s.idx}`, x - 30 + n * 22, y + 42, 12, s.color)
                 n += 1
             end
         end
     end
     if g.selectT > 0 then
-        G.text(`STARTING IN {math.ceil(g.selectT)}`, W / 2, 668, 26, G.WHITE, 0.5)
+        uiText(g, L.format(g.locale, 'STARTING IN {seconds}', { seconds = math.ceil(g.selectT) }), W / 2, 668, 26, G.WHITE, 0.5)
     else
-        G.text('MOVE: PICK   A: READY   B: BACK   START: JOIN', W / 2, 676, 14, G.hex(0xCFC6D8), 0.5)
+        uiText(g, 'MOVE: PICK   A: READY   B: BACK   START: JOIN', W / 2, 676, 14, G.hex(0xCFC6D8), 0.5)
     end
 end
 
@@ -2195,10 +2240,10 @@ local function drawEnd(g: Game)
     G.rect(0, 0, W, H, G.hex(0x140C24))
     G.restore()
     if g.mode == 'win' then
-        G.text('JUMP CITY IS SAFE!', W / 2, 150, 64, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
-        G.text('TITANS WIN!', W / 2, 240, 34, G.WHITE, 0.5)
+        uiText(g, 'JUMP CITY IS SAFE!', W / 2, 150, 64, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+        uiText(g, 'TITANS WIN!', W / 2, 240, 34, G.WHITE, 0.5)
     else
-        G.text('GAME OVER', W / 2, 170, 84, G.hex(0xFF4D5E), 0.5)
+        uiText(g, 'GAME OVER', W / 2, 170, 84, G.hex(0xFF4D5E), 0.5)
     end
     local row = 0
     for _, s in g.slots do
@@ -2206,13 +2251,13 @@ local function drawEnd(g: Game)
             local h = HEROES[s.hero]
             local y = 330 + row * 64
             A.portrait(h.key, W / 2 - 200, y + 14, 0.9, g.t)
-            G.text(`P{s.idx} {h.name}`, W / 2 - 160, y, 22, s.color)
-            G.text(`{s.score}`, W / 2 + 240, y, 22, G.WHITE, 1)
+            uiText(g, `P{s.idx} {tr(g, h.name)}`, W / 2 - 160, y, 22, s.color)
+            uiText(g, `{s.score}`, W / 2 + 240, y, 22, G.WHITE, 1)
             row += 1
         end
     end
     if g.modeT > 1.5 and math.floor(g.t * 2.5) % 2 == 0 then
-        G.text('PRESS START', W / 2, 630, 30, G.WHITE, 0.5)
+        uiText(g, 'PRESS START', W / 2, 630, 30, G.WHITE, 0.5)
     end
 end
 
@@ -2226,7 +2271,7 @@ local function drawPlay(g: Game)
     G.restore()
 
     if g.goT > 0 and math.floor(g.t * 3) % 2 == 0 then
-        G.text('GO!', W - 150, 300, 56, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+        uiText(g, 'GO!', W - 150, 300, 56, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
         G.poly({ W - 210, 380, W - 110, 380, W - 110, 360, W - 60, 400, W - 110, 440, W - 110, 420, W - 210, 420 }, G.hex(0xFFE14D), 3)
     end
     drawBanner(g)
@@ -2237,17 +2282,17 @@ local function drawPlay(g: Game)
         G.opacity(0.6)
         G.rect(0, 0, W, H, G.hex(0x140C24))
         G.restore()
-        G.text('CONTINUE?', W / 2, 250, 64, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
-        G.text(`{math.ceil(g.continueT)}`, W / 2, 340, 90, G.WHITE, 0.5)
-        G.text('PRESS START', W / 2, 470, 26, G.WHITE, 0.5)
+        uiText(g, 'CONTINUE?', W / 2, 250, 64, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+        uiText(g, `{math.ceil(g.continueT)}`, W / 2, 340, 90, G.WHITE, 0.5)
+        uiText(g, 'PRESS START', W / 2, 470, 26, G.WHITE, 0.5)
     end
     if g.paused then
         G.save()
         G.opacity(0.6)
         G.rect(0, 0, W, H, G.hex(0x140C24))
         G.restore()
-        G.text('PAUSED', W / 2, 270, 72, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
-        G.text('START: RESUME    BACK / ESC: QUIT TO TITLE', W / 2, 380, 18, G.WHITE, 0.5)
+        uiText(g, 'PAUSED', W / 2, 270, 72, G.hex(0xFFE14D), 0.5, G.hex(0xB0122A))
+        uiText(g, 'START: RESUME    BACK / ESC: QUIT TO TITLE', W / 2, 380, 18, G.WHITE, 0.5)
     end
 end
 
@@ -2296,7 +2341,61 @@ function draw(self: Main, renderer: Renderer)
     G.restore()
 end
 
+local function languageAt(self: Main, position: Vector): L.Locale?
+    if self.g.mode ~= 'title' then return nil end
+    local sw = if self.size.x > 0 then self.size.x else W
+    local sh = if self.size.y > 0 then self.size.y else H
+    local sc = math.min(sw / W, sh / H)
+    local x = (position.x - (sw - W * sc) / 2) / sc
+    local y = (position.y - (sh - H * sc) / 2) / sc
+    if y < LANGUAGE_Y + 4 or y > LANGUAGE_Y + 54 then return nil end
+    if x >= LANGUAGE_X + 4 and x <= LANGUAGE_X + 120 then return 'en' end
+    if x >= LANGUAGE_X + 124 and x <= LANGUAGE_X + 306 then return 'zh-TW' end
+    return nil
+end
+
+function pointerDown(self: Main, e: PointerEvent)
+    local target = languageAt(self, e.position)
+    if target and self.languagePointer == -1 then
+        self.languagePointer = e.id
+        self.languageTarget = target
+        e:hit()
+    end
+end
+
+function pointerMove(self: Main, e: PointerEvent)
+    local target = languageAt(self, e.position)
+    self.g.languageHover = if target == 'en' then 1 elseif target == 'zh-TW' then 2 else 0
+    if target or self.languagePointer == e.id then e:hit() end
+end
+
+function pointerUp(self: Main, e: PointerEvent)
+    if self.languagePointer ~= e.id then return end
+    local target = languageAt(self, e.position)
+    if target and target == self.languageTarget then self.g.locale = target end
+    self.languagePointer = -1
+    self.languageTarget = nil
+    e:hit()
+end
+
+function pointerExit(self: Main, e: PointerEvent)
+    self.g.languageHover = 0
+    if self.languagePointer == e.id then
+        self.languagePointer = -1
+        self.languageTarget = nil
+        e:hit()
+    end
+end
+
 function keyboardEvent(self: Main, e: KeyboardEvent): boolean
+    if e.key == 258 then -- Tab: language, only on the title screen.
+        if e.phase == 'up' then self.languageKeyHeld = false
+        elseif e.phase == 'down' and not self.languageKeyHeld then
+            self.languageKeyHeld = true
+            if self.g.mode == 'title' then self.g.locale = L.toggle(self.g.locale) end
+        end
+        return self.g.mode == 'title'
+    end
     local bind = KEYS[e.key]
     if bind == nil or e.phase == 'repeat' then
         return false
@@ -2334,6 +2433,12 @@ end
 function gamepadEvent(self: Main, e: GamepadEvent)
     local d = device(self.g, padId(e.deviceId), `CONTROLLER {e.deviceId}`)
     local std = e.isStandardMapping
+    local wasLanguageHeld = d.held['language'] == true
+    local languageDown = if std then e.leftShoulder == true else e:buttonPressed(5)
+    setButton(d, 'language', languageDown)
+    if self.g.mode == 'title' and languageDown and not wasLanguageHeld then
+        self.g.locale = L.toggle(self.g.locale)
+    end
     local stick = e.leftStick
     local sx = if math.abs(stick.x) > 0.28 then stick.x else 0
     local sy = if math.abs(stick.y) > 0.28 then stick.y else 0
@@ -2377,11 +2482,14 @@ local function create(context: Context): Layout<Main>
     return {
         g = newGame(),
         size = Vector.xy(0, 0),
+        languagePointer = -1, languageTarget = nil, languageKeyHeld = false,
         init = init,
         resize = resize,
         advance = advance,
         draw = draw,
         keyboardEvent = keyboardEvent,
+        pointerDown = pointerDown, pointerMove = pointerMove,
+        pointerUp = pointerUp, pointerExit = pointerExit,
         gamepadConnected = gamepadConnected,
         gamepadDisconnected = gamepadDisconnected,
         gamepadEvent = gamepadEvent,

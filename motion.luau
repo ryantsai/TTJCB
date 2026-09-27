@@ -23,7 +23,16 @@ function M.windup(time: number, activeStart: number, extension: number): number
     return math.sin(math.clamp(time / (activeStart * .55), 0, 1) * math.pi / 2) * (1 - math.max(0, extension))
 end
 
--- Planted half-cycle, then a curved toe-off and knee-lift return.
+-- Shared by the foot targets and distance-driven animation clock. Changing the
+-- size of a step must also change its cadence, otherwise planted feet skate.
+function M.gait(kind: string, dash: number): (number, number)
+    local stride = if kind == 'cyborg' then 25 elseif kind == 'beast' then 17 else 21
+    local lift = if kind == 'cyborg' then 9 elseif kind == 'beast' then 11 else 10
+    return stride * (1 + dash * .2), lift * (1 + dash * .12)
+end
+
+-- Heel pickup, foot passing beneath the hips, then extension into contact.
+-- Most of the lift happens behind the body and settles before the next step.
 function M.stride(phase: number, stride: number, lift: number): (number, number)
     local cycle = (phase / (math.pi * 2)) % 1
     if cycle < .56 then
@@ -31,15 +40,15 @@ function M.stride(phase: number, stride: number, lift: number): (number, number)
     end
     local u = (cycle - .56) / .44
     local ease = u * u * (3 - 2 * u)
-    return stride * (-1 + 2 * ease), -math.sin(u * math.pi) * lift
+    return stride * (-1 + 2 * ease), -math.sin(u * math.pi) * (1.2 - .4*u) * lift
 end
 
 -- Both hands are projected together so the staff stays rigid in every pose.
 function M.staff(move: number, ext: number, windup: number, stroke: number, sh: number): (number, number, number, number)
     local e = math.max(0, ext)
     local angle = .12
-    if move == 2 then angle += e * (-.9 + stroke * 1.6) - windup * .6
-    elseif move == 3 then angle += e * (-.3 + stroke * 1.05) - windup * 1.75 end
+    if move == 2 then angle += e * (-1.15 + stroke * 2.1) - windup * .85
+    elseif move == 3 then angle += e * (-.6 + stroke * 1.65) - windup * 1.9 end
     local dx,dy = math.cos(angle)*14,math.sin(angle)*14
     local fx = 12 + e * (if move==1 then 12 else 8) - windup * 12
     local fy = sh + 15 - windup * (if move==3 then 32 else 6) + (if move==3 then e*stroke*12 else 0)

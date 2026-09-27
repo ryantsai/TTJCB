@@ -32,7 +32,9 @@ end
 
 function F.cyborg(x: number, y: number, hurt: boolean)
     G.save(); G.translate(x,y)
-    local skin, metal = H(0xA86858), H(0xCDD2DF)
+    -- Match the menu head's width and crown-to-chin height in the turned view.
+    G.scale(.93,.93)
+    local skin, metal = H(0xA86858), H(0xF1F4FA)
     -- A flat crown and strong jaw, rather than a circular baby face.
     G.contour({ -21,-21, -10,-25,9,-23,21,-17,
         27,-8,28,11,19,23, 10,29,-6,27,-17,19,
@@ -94,6 +96,8 @@ end
 
 function F.raven(x: number, y: number, hurt: boolean)
     G.save(); G.translate(x,y)
+    -- Keep the hood-to-cloak ratio from the menu model.
+    G.scale(.92,.95)
     local cloak = H(0x4838A0)
     -- The hood hides the forehead; black shadow surrounds the eyes.
     G.contour({ -30,4, -30,-16,-21,-29,-7,-30,
@@ -121,13 +125,18 @@ end
 
 function F.starfireHair(x: number,y: number,t: number,walk: number)
     G.save(); G.translate(x,y)
-    local trail = walk*8 + math.sin(t*2.6)*1.5
-    G.contour({ -23,-16, -29,-3,-27,26,-29-trail,47,
-        -30-trail,61,-27-trail,73,-22-trail,78,
-        -22,70,-18,65,-15,61, -10,75,6,84,20,78,
-        14,80,12,75,12,71, 25,69,30,57,27,43,
+    local flow=math.clamp(walk,0,2)
+    local trail=flow*27+math.sin(t*5-1)*3
+    local lift=flow*17
+    G.contour({ -23,-16, -29,-3,-29-trail*.4,26-lift*.3,-29-trail,47-lift,
+        -35-trail,56-lift,-35-trail,68-lift,-32-trail,73-lift,
+        -23-trail,67-lift,-18-trail*.7,58-lift,-15-trail*.7,55-lift,
+        -12-trail*.6,69-lift,1-trail*.8,81-lift,14-trail*.8,76-lift,
+        9-trail*.6,77-lift,7-trail*.6,70-lift,9-trail*.5,66-lift,
+        24-trail*.4,64-lift,28,52-lift*.5,27,43-lift*.4,
         24,24,26,0,22,-17, 13,-28,-12,-27,-23,-16 },H(0xE00078),1.6)
-    G.polyline({ -22,8,-23-trail,36,-21-trail,56 },1.1,H(0xB00060))
+    G.polyline({ -22,8,-23-trail*.6,36-lift*.5,-29-trail,59-lift },2,H(0xB00060))
+    G.polyline({ 20,20,16-trail*.4,48-lift*.4,3-trail*.7,67-lift },1.5,H(0xFF469B))
     G.restore()
 end
 

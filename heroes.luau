@@ -1,5 +1,5 @@
 -- The five Titans, drawn Teen Titans Go! style: three-quarter fighting view,
--- huge heads, slim bodies and heavy ink. Colours and shapes follow the show's
+-- huge heads, sculpted limbs and heavy ink. Colours and shapes follow the show's
 -- character sheets. Each figure stands with its feet at (0, 0) and faces +x;
 -- the game mirrors it for the other direction.
 local G = require('gfx')
@@ -23,12 +23,13 @@ local function bob(p: P.Pose): number
     if p.down > 0 then return 0 end
     if p.air then return if p.style=='beast' then (1-math.abs(p.rise))*4 else 0 end
     local heavy=p.style=='cyborg'
-    local weight=(1-math.cos(p.phase*2))*.5*(if heavy then 4 else 2.5)*p.walk
+    local contact=(.5+.5*math.cos(p.phase*2-.5))
+    local weight=(contact*(if heavy then 5 elseif p.style=='beast' then 5 else 4)-1)*p.walk+p.dash*2
     local anticipation=math.max(0,-p.ext)*8
     local crouch=if heavy and p.move==8 then math.max(0,p.ext)*28 else 0
-    local strike=if p.move>=1 and p.move<=3 then math.max(0,p.ext)*2 else 0
-    local spring=p.launch*(if heavy then 13 elseif p.style=='raven' then 5 else 10)
-    local landing=p.land*(if heavy then 15 elseif p.style=='starfire' or p.style=='raven' then 5 else 10)
+    local strike=if p.move>=1 and p.move<=3 then math.max(0,p.ext)*(if p.move==2 then 5 else 2) else 0
+    local spring=p.launch*(if heavy then 17 elseif p.style=='raven' then 7 else 14)
+    local landing=p.land*(if heavy then 18 elseif p.style=='starfire' or p.style=='raven' then 8 else 14)
     return weight+anticipation+crouch+spring+landing-strike-math.sin(p.t*2.4)*.8*(1-p.walk)
 end
 
@@ -143,11 +144,14 @@ local function handTarget(p: P.Pose, front: boolean, sx: number, sy: number, ix:
         local guardY = if p.style == 'cyborg' then 22 else 13
         if not front then guardX -= 5; guardY -= 5 end
         local swingCycle=(if front then -1 else 1)*math.cos(p.phase)
-        local runX=sx+swingCycle*(if p.style=='beast' then 23 else 20)
-        local runY=sy+(if p.style=='cyborg' then 38 else 22)-math.max(0,swingCycle)*9
+        local runX=sx+5+swingCycle*(if p.style=='cyborg' then 32 elseif p.style=='beast' then 29 else 27)
+        local runY=sy+(if p.style=='cyborg' then 26 else 15)-math.max(0,swingCycle)*24+math.max(0,-swingCycle)*9
         if p.style=='starfire' then
-            runX=sx+(if front then 15 else -13)
-            runY=sy+(if front then 8 else 18)+math.sin(p.phase)*2
+            runX=sx+(if front then 29+p.dash*6 else -25)
+            runY=sy+(if front then -6 else 20)+math.sin(p.t*5)*3
+        elseif p.style=='raven' then
+            runX=sx+(if front then 30 else -26)
+            runY=sy+(if front then 5 else 18)+math.sin(p.t*4+(if front then 0 else 1.6))*5
         end
         return lerp(sx + guardX, runX, p.walk), lerp(sy + guardY, runY, p.walk)
     end
@@ -179,12 +183,20 @@ local function legJoint(p: P.Pose, hx: number, hy: number, fx: number, fy: numbe
     if p.style=='' and p.walk<.01 and p.move==0 and not p.air then
         return joint(hx, hy, fx, fy, -2)
     end
-    local dx, dy = fx - hx, fy - hy
+    -- Solve to the ankle, not the bottom of the shoe. Bone lengths fit the
+    -- standing hip height; overlong bones force both knees into a deep crouch.
+    local dx, dy = fx - hx, fy - (if p.style~='' then 4 else 0) - hy
     local d = math.max(0.01, math.sqrt(dx * dx + dy * dy))
-    local upper=if p.style=='cyborg' then 26 elseif p.style=='starfire' then 29 elseif p.style=='beast' then 18 elseif p.style~='' then 20 else math.abs(hy)*.53+2
-    local lower=if p.style=='cyborg' then 28 elseif p.style=='starfire' then 29 elseif p.style=='beast' then 18 elseif p.style~='' then 22 else math.abs(hy)*.5+2
+    local upper=if p.style=='cyborg' then 21 elseif p.style=='starfire' then 25 elseif p.style=='beast' then 13 elseif p.style~='' then 16 else math.abs(hy)*.53+2
+    local lower=if p.style=='cyborg' then 23 elseif p.style=='starfire' then 27 elseif p.style=='beast' then 15 elseif p.style~='' then 18 else math.abs(hy)*.5+2
+    -- A wide attack stance can exceed the bind reach slightly: extend along
+    -- the hip-to-ankle line rather than letting the shin reverse at the knee.
+    if d>=upper+lower then
+        return hx+dx*upper/(upper+lower),hy+dy*upper/(upper+lower)
+    end
     local along = math.clamp((upper * upper - lower * lower + d * d) / (2 * d), 0, d)
     local bend = math.sqrt(math.max(0, upper * upper - along * along))
+    -- Both knees bend toward local +x. Facing is applied once to the figure.
     return hx + dx / d * along + dy / d * bend, hy + dy / d * along - dx / d * bend
 end
 
@@ -196,7 +208,7 @@ local function foot(p: P.Pose, front: boolean, hipX: number, hipY: number, restX
     local ePos = math.max(0, p.ext)
     if p.style ~= '' and not p.air then restX += (if front then 7 else -6) * (1 - p.walk) end
     if p.move >= 1 and p.move <= 3 and p.style ~= '' then
-        local spread = if p.style == 'cyborg' then 9 elseif p.style == 'beast' then 10 else 5
+        local spread = if p.style == 'cyborg' then 15 elseif p.style == 'beast' then 16 else 12
         return restX + dir * spread * ePos, if p.style == 'beast' and p.move == 3 and not front then -9 * ePos else 0
     elseif p.move == 3 and front then
         local chamber = math.min(1, math.max(0, -p.ext) / 0.35)
@@ -217,25 +229,26 @@ local function foot(p: P.Pose, front: boolean, hipX: number, hipY: number, restX
         local rise,fall=math.max(0,p.rise),math.max(0,-p.rise)
         local tuck=math.max(0,1-math.abs(p.rise)*1.4)
         if p.style=='starfire' then
-            return hipX-(if front then 6 else 14)+fall*8,hipY*(if front then .18 else .4)-tuck*4
+            return hipX+(if front then 10 else -18)+fall*6,hipY*(if front then .32 else .08)-tuck*3
         elseif p.style=='beast' then
-            return hipX+(if front then 10 else -9)*(1-fall*.4),hipY*(.3+tuck*.48)-rise*5
+            return hipX+(if front then 12 else -13)*(1-fall*.35),hipY*(if front then .26+tuck*.18 else .12+tuck*.16)-rise*3
         elseif p.style=='cyborg' then
-            return hipX+(if front then 13 else -10),hipY*(.12+tuck*(if front then .48 else .25))
+            return hipX+(if front then 17 else -15),hipY*(.08+tuck*(if front then .32 else .15))
         end
-        return hipX+(if front then 11+rise*5 else -12+fall*5),hipY*(.18+tuck*(if front then .5 else .26)+rise*(if front then .22 else 0))
+        return hipX+(if front then 12+rise*4 else -15+fall*4),hipY*(.1+tuck*(if front then .3 else .12)+rise*(if front then .12 else 0))
     end
     if p.style~='' then
         if p.walk>.01 then
             if p.style=='starfire' then
-                return restX-8-p.walk*10,hipY*.15+math.sin(p.phase+(if front then 0 else math.pi))*4
+                local wave=math.sin(p.t*5+(if front then 0 else 1.8))
+                return lerp(restX,if front then hipX+9 else hipX-21-p.dash*5,p.walk),
+                    (if front then hipY*.3 else hipY*.06)*p.walk+wave*2*p.walk
             end
-            local stride=if p.style=='cyborg' then 27 elseif p.style=='beast' then 19 else 22
-            local lift=if p.style=='cyborg' then 11 elseif p.style=='beast' then 20 else 17
+            local stride,lift=Motion.gait(p.style,p.dash)
             local x,y=Motion.stride(p.phase+(if front then 0 else math.pi),stride,lift)
             return lerp(restX,hipX+x,p.walk),y*p.walk
         end
-        return restX,if front then 0 else -3
+        return restX,0
     end
     local fy=0
     if p.walk>.05 then fy=-math.max(0,dir*c)*12*p.walk end
@@ -243,31 +256,55 @@ local function foot(p: P.Pose, front: boolean, hipX: number, hipY: number, restX
 
 end
 
--- Lean the upper body around the hips.
-local function leanBegin(p: P.Pose, pivotY: number)
-    local lean=p.walk*(if p.style=='beast' then .21 elseif p.style=='cyborg' then .1 else .13)
+-- Chest leads the action while the head counter-rotates to keep the gaze level.
+local function leanAngle(p: P.Pose): number
+    local lean=p.walk*(if p.style=='beast' then .34 elseif p.style=='cyborg' then .2 elseif p.style=='starfire' then .31 elseif p.style=='raven' then .18 else .27)
     if p.move==8 or p.move==9 then
         lean=if p.style=='starfire' and p.move==8 then .38*math.max(0,p.ext) else 0
     elseif p.hurt then
         lean=-.22
     elseif p.move>=1 and p.move<=3 then
         local e=math.max(0,p.ext)
-        local strength=if p.style=='beast' then .3 elseif p.style=='raven' then .09 elseif p.style=='cyborg' then .17 else .2
+        local strength=if p.style=='beast' then .46 elseif p.style=='raven' then .19 elseif p.style=='cyborg' then .29 else .34
         if p.move==3 then strength*=1.35 end
-        lean=strength*e-p.windup*(if p.style=='raven' then .08 else .2)
+        lean=strength*e-p.windup*(if p.style=='raven' then .14 else .3)
         if p.move==2 then lean-=e*(1-p.stroke)*.13 end
         lean+=math.sin(p.settle*math.pi)*.035
     elseif p.air then
         local rise,fall=math.max(0,p.rise),math.max(0,-p.rise)
-        lean=if p.style=='beast' then .25*rise-.12*fall elseif p.style=='starfire' then .13*p.speed elseif p.style=='raven' then -.06 else .12*rise-.1*fall
-        if p.move==4 then lean+=math.max(0,p.ext)*(if p.style=='beast' then .32 else .13) end
+        lean=if p.style=='beast' then .38*rise-.16*fall elseif p.style=='starfire' then .28*p.speed elseif p.style=='raven' then -.09 else .22*rise-.15*fall
+        if p.move==4 then lean+=math.max(0,p.ext)*(if p.style=='beast' then .42 else .23) end
     elseif p.launch>0 or p.land>0 then
-        lean=.15*p.launch+.12*p.land
+        lean=.25*p.launch+.2*p.land
     end
+    return lean+p.dash*.22
+end
+
+local function torsoScale(p: P.Pose): (number, number)
+    if p.style=='' or p.down>0 or p.hurt then return 1,1 end
+    local compression=if p.move==0 then p.launch*.12+p.land*.16 else 0
+    local impact=if p.move>=1 and p.move<=3 then math.max(0,p.ext)*.06 else 0
+    return 1+compression+impact,1-compression*.65
+end
+
+local function leanBegin(p: P.Pose, pivotY: number)
+    local sx,sy=torsoScale(p)
     G.save()
     G.translate(0, pivotY)
-    G.rotate(lean + p.dash*.18)
+    G.rotate(leanAngle(p))
+    G.scale(sx,sy)
     G.translate(0, -pivotY)
+end
+
+local function bodyPoint(p: P.Pose, pivotY: number, x: number, y: number): (number, number)
+    local sx,sy=torsoScale(p)
+    local angle=leanAngle(p)
+    local dx,dy=x*sx,(y-pivotY)*sy
+    return dx*math.cos(angle)-dy*math.sin(angle),pivotY+dx*math.sin(angle)+dy*math.cos(angle)
+end
+
+local function hoverOffset(p: P.Pose, hover: number): number
+    return hover+math.sin(p.t*2.6)*3+(if p.style=='starfire' then p.walk*10 elseif p.style=='raven' then p.walk*9 else 0)
 end
 
 -- Knocked down or floating.
@@ -277,7 +314,7 @@ local function frameBegin(p: P.Pose, hover: number, lie: number)
         G.translate(0, -lie * p.down)
         G.rotate(-math.pi / 2 * p.down)
     elseif hover > 0 then
-        G.translate(0,-hover-math.sin(p.t*2.6)*3-(if p.style=='starfire' then p.walk*7 else 0))
+        G.translate(0,-hoverOffset(p,hover))
     end
 end
 
@@ -285,16 +322,31 @@ local function stick(ax: number, ay: number, bx: number, by: number, cx: number,
     G.limb(ax, ay, bx, by, cx, cy, th, c)
 end
 
--- Gameplay limbs use a single outline across the elbow, without joint beads.
+-- Tapered, curved volumes instead of constant-width strokes. The broad upper
+-- limb narrows at the joint and wrist; the outline stays continuous when bent.
 local function bodyLimb(p: P.Pose, ax: number, ay: number, bx: number, by: number, cx: number, cy: number, th: number, c: Color)
     if p.style == '' then stick(ax, ay, bx, by, cx, cy, th, c); return end
-    local pts = { ax, ay, bx, by, cx, cy }
-    G.polyline(pts, th + 3, INK)
-    G.polyline(pts, th, c)
+    local dx1,dy1,dx2,dy2=bx-ax,by-ay,cx-bx,cy-by
+    if dx1*dx1+dy1*dy1<.01 then dx1,dy1=dx2,dy2 end
+    if dx2*dx2+dy2*dy2<.01 then dx2,dy2=dx1,dy1 end
+    local d1,d2=math.max(.01,math.sqrt(dx1*dx1+dy1*dy1)),math.max(.01,math.sqrt(dx2*dx2+dy2*dy2))
+    local nx1,ny1,nx2,ny2=-dy1/d1,dx1/d1,-dy2/d2,dx2/d2
+    local mx,my=(nx1+nx2)*.5,(ny1+ny2)*.5
+    local bulk=if p.style=='beast' then 1.4 elseif p.style=='cyborg' then 1.3 else 1.25
+    local root,elbow,wrist=th*.66*bulk,th*.52*bulk,th*.38*bulk
+    G.contour({ ax+nx1*root,ay+ny1*root,
+        lerp(ax,bx,.55)+nx1*root,lerp(ay,by,.55)+ny1*root,bx+nx1*elbow,by+ny1*elbow,bx+mx*elbow,by+my*elbow,
+        bx+nx2*elbow,by+ny2*elbow,lerp(bx,cx,.6)+nx2*wrist,lerp(by,cy,.6)+ny2*wrist,cx+nx2*wrist,cy+ny2*wrist,
+        cx+dx2/d2*2,cy+dy2/d2*2,cx+dx2/d2*2,cy+dy2/d2*2,cx-nx2*wrist,cy-ny2*wrist,
+        lerp(bx,cx,.6)-nx2*wrist,lerp(by,cy,.6)-ny2*wrist,bx-nx2*elbow,by-ny2*elbow,bx-mx*elbow,by-my*elbow,
+        bx-nx1*elbow,by-ny1*elbow,lerp(ax,bx,.55)-nx1*root,lerp(ay,by,.55)-ny1*root,ax-nx1*root,ay-ny1*root,
+        ax-dx1/d1*2,ay-dy1/d1*2,ax-dx1/d1*2,ay-dy1/d1*2,ax+nx1*root,ay+ny1*root },c,1.5)
 end
 
 -- Gloves and armour follow the forearm angle rather than staying upright.
 local function forearmShell(ex: number, ey: number, hx: number, hy: number, start: number, width: number, wrist: number, c: Color, panel: Color?)
+    width*=1.12
+    wrist*=1.08
     local x, y = lerp(ex, hx, start), lerp(ey, hy, start)
     local dx, dy = hx - x, hy - y
     local length = math.sqrt(dx * dx + dy * dy)
@@ -311,7 +363,7 @@ local function forearmShell(ex: number, ey: number, hx: number, hy: number, star
 end
 
 local function fist(ex: number, ey: number, hx: number, hy: number, size: number, c: Color)
-    G.save(); G.translate(hx,hy); G.rotate(math.atan2(hy-ey,hx-ex)); G.scale(size,size)
+    G.save(); G.translate(hx,hy); G.rotate(math.atan2(hy-ey,hx-ex)); G.scale(size*1.16,size*1.16)
     G.contour({ -2,-4, 0,-5,4,-5,6,-3,
         7,-1,7,2,5,4, 3,5,-1,5,-3,2,
         -4,0,-3,-3,-2,-4 }, c, 1.2)
@@ -320,23 +372,24 @@ local function fist(ex: number, ey: number, hx: number, hy: number, size: number
     G.restore()
 end
 
-local function boot(kx: number, ky: number, fx: number, fy: number, width: number, c: Color, toe: Color)
-    local dx, dy = fx-kx, fy-ky
-    local length = math.sqrt(dx*dx+dy*dy)
-    G.save(); G.translate(kx,ky); G.rotate(math.atan2(dy,dx))
-    G.poly({ 0,-width*.6,length-2,-width,length,width,length*.3,width*.65,0,width*.5 },c,1.4)
-    G.restore()
-    G.contour({ fx-width,fy-2, fx-width,fy-8,fx+width*.5,fy-10,fx+width+3,fy-3,
-        fx+width+5,fy+1,fx+width+3,fy+3,fx+width,fy+3,
-        fx+2,fy+4,fx-width,fy+3,fx-width,fy-2 },toe,1.5)
-    G.line(fx-width+1,fy+1,fx+width+3,fy+1,1,INK)
+local function footPitch(p: P.Pose, front: boolean): number
+    if p.style=='starfire' then return if front then .08 else .2 end
+    if p.air then return if front then -.08 else .18 end
+    if p.move~=0 or p.walk<.01 then return 0 end
+    local cycle=((p.phase+(if front then 0 else math.pi))/(math.pi*2))%1
+    if cycle<.56 then return 0 end
+    return math.sin((cycle-.56)/.44*math.pi*2)*.23*p.walk
 end
 
--- Scale drawings around a point; pair with G.restore().
-local function scaleAt(x: number, y: number, k: number)
+-- Keep the head's volume and gaze stable as the chest compresses and rotates.
+local function headBegin(p: P.Pose, x: number, y: number)
     G.save()
     G.translate(x, y)
-    G.scale(k, k)
+    if p.style~='' then
+        local sx,sy=torsoScale(p)
+        G.scale(1/sx,1/sy)
+        G.rotate(-leanAngle(p)*.6)
+    end
     G.translate(-x, -y)
 end
 
@@ -357,6 +410,50 @@ local function glowHands(p: P.Pose, x1: number, y1: number, x2: number, y2: numb
         if p.move == 5 then
             G.glow(x2, y2, 20, c, 0.7)
         end
+    end
+end
+
+-- Tapered arcs expose the sweep without covering the pose with a solid flash.
+local function ribbon(x: number, y: number, radius: number, first: number, last: number, c: Color)
+    local pts: {number}={}
+    local edge: {number}={}
+    for i=0,14 do
+        local u=i/14
+        local a=lerp(first,last,u)
+        local r=radius+math.sin(u*math.pi)*5
+        table.insert(pts,x+math.cos(a)*r);table.insert(pts,y+math.sin(a)*r)
+        table.insert(edge,x+math.cos(a)*r);table.insert(edge,y+math.sin(a)*r)
+    end
+    for i=14,0,-1 do
+        local u=i/14
+        local a=lerp(first,last,u)
+        local r=radius-math.sin(u*math.pi)*8
+        table.insert(pts,x+math.cos(a)*r);table.insert(pts,y+math.sin(a)*r)
+    end
+    G.poly(pts,G.fade(c,.32))
+    G.polyline(edge,1.6,G.fade(c,.8))
+end
+
+local function actionFx(p: P.Pose)
+    if not p.active or p.move<1 or p.move>3 or p.hurt or p.down>0 then return end
+    local u=p.stroke
+    if p.style=='robin' then
+        if p.move~=1 then
+            ribbon(-4,-43,if p.move==3 then 77 else 68,-1.9+u*.4,.35+u*.65,H(0xFFE04D))
+        end
+    elseif p.style=='cyborg' then
+        if p.move==2 then ribbon(0,-61,66,1.05-u*.3,-1.0-u*.2,H(0x9CEAFF))
+        elseif p.move==3 then
+            ribbon(-7,-42,77,-1.8+u*.5,.35+u*.3,H(0x9CEAFF))
+        else
+            G.poly({ 16,-83,83+u*16,-60,20,-56,49,-64 },G.fade(H(0x9CEAFF),.38))
+        end
+    elseif p.style=='beast' then
+        for i=0,2 do ribbon(-2,-33,48+i*8,-1.5+u*.4,.2+u*.8,H(0xB9FF72)) end
+    elseif p.style=='starfire' then
+        ribbon(1,-63,54+u*7,if p.move==2 then 1.3 else -1.3,if p.move==2 then -.9 else .5,H(0xACFF72))
+    elseif p.style=='raven' then
+        ribbon(-1,-50,60,-1.4+u*.6,.85+u*.5,H(0xB880FF))
     end
 end
 
@@ -386,6 +483,11 @@ local function normalFx(p: P.Pose, fx: number, fy: number, bx: number, by: numbe
         G.oellipse(fx,fy,4.5,3.8,H(0x22B86C),1.3)
         if p.active then
             G.line(fx + dx * 34 - 10, fy + dy * 34 - 7, fx + dx * 57 - 10, fy + dy * 57 - 7, 2, H(0xFFE04D))
+            if m==1 then
+                G.poly({ fx+dx*30-dy*4,fy+dy*30+dx*4,
+                    fx+dx*78,fy+dy*78,
+                    fx+dx*30+dy*4,fy+dy*30-dx*4 },G.fade(H(0xFFE04D),.55))
+            end
         end
     elseif p.style == 'beast' then
         -- Brief paw morphs: the gloves grow into green three-clawed hands.
@@ -482,15 +584,22 @@ local function robin(p: P.Pose, titleFacing: boolean)
     frameBegin(p, 0, 16)
     local b = bob(p)
     local hipY, sh = -34 + b, -62 + b
-    local flare=p.walk*9+math.abs(p.ext)*10+(if p.air then 8+(1-math.abs(p.rise))*9 else 0)+math.sin(p.t*(if p.air then 10 else 4))*1.5
+    local flare=p.walk*23+p.dash*17+math.abs(p.ext)*14+(if p.air then 14+(1-math.abs(p.rise))*13 else 0)+math.sin(p.t*(if p.air then 10 else 7))*3
+    local lift=p.walk*20+p.dash*9+(if p.air then 15 else 0)
     -- Cape roots share the torso transform during running and attacks.
     leanBegin(p, hipY)
     if titleFacing then
         G.poly({ -13, sh, 14, sh, 19 + flare * 0.4, -11, 2, -9, -18 - flare, -11 }, R_CAPE, 2.5)
         G.line(-8, sh + 6, -14 - flare, -12, 2, H(0x8F6A1E))
     else
-        G.poly({ -13, sh, 10, sh, 14, -10, -9, -9, -33 - flare, -8, -24 - flare, -26 }, R_CAPE, 2)
-        G.line(-9, sh + 6, -24 - flare, -14, 1.5, H(0xB28B2B))
+        G.contour({ -13,sh, -24,sh+13,-29-flare,-31-lift,-45-flare,-12-lift,
+            -33-flare,-14-lift,-27-flare,-8-lift,-24-flare,-5-lift,
+            -17-flare,-14-lift,-11-flare,-6-lift,-8-flare,-4-lift,
+            0,-12,9,-11,14,-10, 9,-28,12,sh+9,10,sh,
+            2,sh-3,-8,sh-3,-13,sh },R_CAPE,2)
+        G.contour({ -10,sh+6, -16,sh+25,-23-flare,-21-lift,-33-flare,-13-lift,
+            -21-flare,-17-lift,-11,-13,1,-13, -8,-25,-7,sh+19,-10,sh+6 },H(0xB28B2B))
+        G.line(-9,sh+9,-24-flare,-16-lift,1.3,H(0xFFE674))
     end
     G.restore()
     -- back arm
@@ -520,44 +629,32 @@ local function robin(p: P.Pose, titleFacing: boolean)
         local fy = if i == 1 then bfy else ffy
         local k = if i == 1 then -0.15 else 0
         local kx, ky = legJoint(p, hx, hipY, fx, fy)
-        bodyLimb(p, hx, hipY, kx, ky, fx, fy - 3, 6.5, G.shade(R_GREEN, k))
-        if titleFacing then
-            bodyLimb(p, lerp(kx, fx, 0.5), lerp(ky, fy, 0.5), fx, fy - 3, fx, fy - 3, 6.5, G.shade(R_HAIR, k))
-            G.oellipse(fx + 3, fy - 2.5, 5.5, 3.4, G.shade(R_HAIR, k), 2)
-        else
-            boot(lerp(kx,fx,.2),lerp(ky,fy,.2),fx,fy,5.2,R_HAIR,G.shade(H(0xA6B9B5),k))
-        end
+        bodyLimb(p, hx, hipY, kx, ky, fx, fy - (if titleFacing then 3 else 4), 6.5, G.shade(R_GREEN, k))
+        -- One costume drawing for menus and play: short black boots with the
+        -- same rounded toe. Only the ankle pitch changes with the gait.
+        local bootColor=G.shade(R_HAIR,k)
+        G.limb(lerp(kx,fx,.5),lerp(ky,fy,.5),fx,fy-3,fx,fy-3,6.5,bootColor)
+        G.save();G.translate(fx,fy-3)
+        G.rotate(footPitch(p,i==2))
+        G.oellipse(3,.5,5.5,3.4,bootColor,2)
+        G.restore()
     end
     leanBegin(p, hipY)
     -- black neck
     G.poly({ -5, sh - 7, 5, sh - 7, 4, sh + 8, -4, sh + 8 }, R_HAIR)
-    -- tunic
-    if titleFacing then
-        G.poly({ -11, sh - 1, 12, sh - 1, 10, hipY + 2, -9, hipY + 2 }, R_RED, 2.5)
-    else
-        G.poly({ -13, sh, 12, sh - 2, 16, sh + 11, 10, hipY + 2, -11, hipY + 2 }, R_RED, 2)
-        G.poly({ 10, sh + 1, 15, sh + 10, 10, hipY, 6, hipY }, G.shade(R_RED, -.18))
+    -- The menu is the model sheet: both views share the tunic silhouette.
+    -- Perspective comes from the side shading, not an enlarged chest.
+    G.poly({ -11, sh - 1, 12, sh - 1, 10, hipY + 2, -9, hipY + 2 }, R_RED, 2.5)
+    if not titleFacing then
+        G.poly({ 8, sh, 12, sh, 10, hipY + 2, 6, hipY + 2 }, G.shade(R_RED, -.18))
     end
     G.poly({ -5, sh - 1, 0, sh + 4, 5, sh - 1 }, R_HAIR)
-    if titleFacing then
-        G.line(-6, sh + 9, -1, sh + 8, 2, R_YELLOW)
-        G.line(-6, sh + 14, -1, sh + 13, 2, R_YELLOW)
-    else
-        G.line(-6, sh + 9, 0, sh + 8, 2, R_YELLOW)
-        G.line(-6, sh + 14, 0, sh + 13, 2, R_YELLOW)
-    end
+    G.line(-6, sh + 9, -1, sh + 8, 2, R_YELLOW)
+    G.line(-6, sh + 14, -1, sh + 13, 2, R_YELLOW)
     -- R badge
-    if titleFacing then
-        G.oellipse(5.5, sh + 11, 3.4, 3.4, R_YELLOW, 1.5)
-    else
-        G.oellipse(7, sh + 10, 3.1, 3.4, R_YELLOW, 1)
-    end
+    G.oellipse(5.5, sh + 11, 3.4, 3.4, R_YELLOW, 1.5)
     G.save()
-    if titleFacing then
-        G.translate(5.5, sh + 11)
-    else
-        G.translate(7, sh + 10)
-    end
+    G.translate(5.5, sh + 11)
     G.scale(p.flip, 1)
     G.label('R', -1.1, -2, 4.2, R_HAIR)
     G.restore()
@@ -566,15 +663,10 @@ local function robin(p: P.Pose, titleFacing: boolean)
     G.oellipse(0, hipY - 2, 2.6, 2.6, R_YELLOW, 1.5)
     G.circle(0, hipY - 2, 1.2, H(0xD08A1E))
     -- green short sleeves
-    if titleFacing then
-        G.oellipse(-10, sh + 2, 4.5, 3.8, G.shade(R_GREEN, -0.12), 1.8)
-        G.oellipse(11, sh + 2, 4.5, 3.8, R_GREEN, 1.8)
-    else
-        G.poly({ 6,sh-1,13,sh-1,16,sh+7,9,sh+8 },G.shade(R_GREEN,-.12),1.3)
-        G.poly({ -14,sh,-7,sh-1,-4,sh+7,-12,sh+10,-16,sh+5 },R_GREEN,1.3)
-    end
+    G.oellipse(if titleFacing then -10 else 11, sh + 2, 4.5, 3.8, G.shade(R_GREEN, -0.12), 1.8)
+    G.oellipse(if titleFacing then 11 else -10, sh + 2, 4.5, 3.8, R_GREEN, 1.8)
     -- head
-    scaleAt(2, sh - 26, 1.0)
+    headBegin(p,2,sh-26)
     if titleFacing then
         robinHead(2, sh - 26, p.hurt or p.ko, p.t)
     else
@@ -654,14 +746,21 @@ local function cyborgArm(p: P.Pose, front: boolean, sx: number, sy: number, ix: 
     local hx, hy = hand(p, front, sx, sy, ix, iy, if front then 64 else 36)
     local ex, ey = armJoint(p, sx, sy, hx, hy, if front then -4 else 4)
     if p.style ~= '' then
-        bodyLimb(p,sx,sy,ex,ey,ex,ey,10,INK)
-        forearmShell(ex,ey,hx,hy,.08,10.5,8.2,G.shade(C_LIGHT,k),G.shade(C_CYAN,k))
+        -- The same silver armour and upper-arm cyan inset as the menu model.
+        bodyLimb(p,sx,sy,ex,ey,ex,ey,10,G.shade(C_GREY,k))
+        bodyLimb(p,lerp(sx,ex,.25),lerp(sy,ey,.25),lerp(sx,ex,.5),lerp(sy,ey,.5),lerp(sx,ex,.6),lerp(sy,ey,.6),7,G.shade(C_CYAN,k-.1))
+        G.oellipse(ex,ey,6,5.5,G.shade(C_GREY,k),1.6)
+        forearmShell(ex,ey,hx,hy,.08,10.5,8.2,G.shade(C_GREY,k),nil)
+        local dx,dy=hx-ex,hy-ey
+        local length=math.max(1,math.sqrt(dx*dx+dy*dy))
+        G.line(lerp(ex,hx,.4)+dy/length*3,lerp(ey,hy,.4)-dx/length*3,
+            lerp(ex,hx,.9)+dy/length*3,lerp(ey,hy,.9)-dx/length*3,1.3,C_TRACE)
         if front and (p.move == 5 or p.move == 9) then
             G.glow(hx+6,hy,30,H(0x9FE8FF),.9)
             G.oellipse(hx+4,hy,8,8,C_GREY,1.6)
             G.circle(hx+4,hy,5,H(0xDDF8FF))
         else
-            fist(ex,ey,hx,hy,1.8,G.shade(C_GREY,k))
+            fist(ex,ey,hx,hy,1.8,G.shade(C_LIGHT,k))
         end
         return
     end
@@ -684,23 +783,15 @@ local function cyborgArm(p: P.Pose, front: boolean, sx: number, sy: number, ix: 
     end
 end
 
-local function shoulderPad(x: number, y: number, k: number, gameplay: boolean?)
-    if gameplay then
-        G.contour({ x-15,y+9,
-            x-20,y-6,x-11,y-15,x+1,y-14,
-            x+13,y-14,x+18,y-5,x+17,y+9,
-            x+8,y+9,x+1,y+9,x-3,y+13,
-            x-8,y+14,x-12,y+12,x-15,y+9 },G.shade(C_GREY,k),1.8)
-    else
-        G.poly({
+local function shoulderPad(x: number, y: number, k: number)
+    G.poly({
             x - 13, y + 8,
             x - 12, y - 4,
             x - 6, y - 11,
             x + 7, y - 12,
             x + 13, y - 4,
             x + 14, y + 8,
-        }, G.shade(C_GREY, k), 2.5)
-    end
+    }, G.shade(C_GREY, k), 2.5)
     local hex: { number } = {}
     for i = 0, 5 do
         local a = i / 6 * math.pi * 2 + math.pi / 6
@@ -721,7 +812,7 @@ local function cyborg(p: P.Pose, titleFacing: boolean)
         shoulderPad(-29, sh + 2, -0.15)
     else
         cyborgArm(p, false, 22, sh + 7, 22, hipY - 7)
-        shoulderPad(23, sh, -0.15, true)
+        shoulderPad(23, sh, -0.15)
     end
     G.restore()
     -- legs
@@ -733,49 +824,32 @@ local function cyborg(p: P.Pose, titleFacing: boolean)
         local fy = if i == 1 then bfy else ffy
         local k = if i == 1 then -0.15 else 0
         local kx, ky = legJoint(p, hx, hipY, fx, fy)
-        if titleFacing then
-            bodyLimb(p, hx, hipY, kx, ky, fx, fy - 4, 11.5, G.shade(C_GREY, k))
-            bodyLimb(p, hx, hipY + 2, lerp(hx, kx, 0.4), lerp(hipY, ky, 0.4), lerp(hx, kx, 0.6), lerp(hipY, ky, 0.6), 12, G.shade(C_DARK, k - 0.15))
-            bodyLimb(p, kx, ky + 2, fx, fy - 10, fx, fy - 5, 16, G.shade(C_LIGHT, k))
-            G.oellipse(fx + 3.5, fy - 4, 11, 5, G.shade(C_LIGHT, k), 1.7)
-            G.line(fx - 2, fy - 5.5, fx + 8, fy - 5.5, 1.6, C_DARK)
-        else
-            bodyLimb(p,hx,hipY,kx,ky,fx,fy-4,10,INK)
-            boot(kx,ky,fx,fy,9,G.shade(C_LIGHT,k),G.shade(C_GREY,k))
-            G.oellipse(kx,ky,5.3,3.7,G.shade(C_GREY,k),1.3)
-        end
+        bodyLimb(p,hx,hipY,kx,ky,fx,fy-4,if titleFacing then 11.5 else 9.5,G.shade(C_GREY,k))
+        bodyLimb(p,hx,hipY+2,lerp(hx,kx,.4),lerp(hipY,ky,.4),lerp(hx,kx,.6),lerp(hipY,ky,.6),if titleFacing then 12 else 10,G.shade(C_DARK,k-.15))
+        -- Shared white shin armour, rounded boot and toe groove.
+        G.limb(kx,ky+2,lerp(kx,fx,.5),lerp(ky+2,fy-5,.5),fx,fy-5,16,G.shade(C_LIGHT,k))
+        G.save();G.translate(fx,fy-4);G.rotate(footPitch(p,i==2))
+        G.oellipse(3.5,0,11,5,G.shade(C_LIGHT,k),1.7)
+        G.line(-2,-1.5,8,-1.5,1.6,C_DARK)
+        G.restore()
     end
     leanBegin(p, hipY)
-    -- torso
+    -- Shared menu armour proportions; only the inset seam turns toward +x.
+    G.contour({ -27, sh - 4, -10, sh - 9, 12, sh - 9, 27, sh - 4,
+        26, sh + 20, 21, hipY - 3, 14, hipY + 3,
+        6, hipY + 7, -8, hipY + 7, -15, hipY + 2,
+        -23, hipY - 9, -27, sh + 13, -27, sh - 4,
+    }, C_GREY, 2)
+    G.contour({ -23, sh - 2, -9, sh - 5, 12, sh - 5, 23, sh - 2,
+        22, sh + 7, 19, sh + 19, 16, sh + 24,
+        5, sh + 27, -8, sh + 27, -17, sh + 23,
+        -21, sh + 14, -23, sh + 6, -23, sh - 2,
+    }, C_LIGHT, 1.5)
     if titleFacing then
-        G.contour({ -27, sh - 4, -10, sh - 9, 12, sh - 9, 27, sh - 4,
-            26, sh + 20, 21, hipY - 3, 14, hipY + 3,
-            6, hipY + 7, -8, hipY + 7, -15, hipY + 2,
-            -23, hipY - 9, -27, sh + 13, -27, sh - 4,
-        }, C_GREY, 2)
-    else
-        G.contour({ -25, sh - 4, -10, sh - 9, 14, sh - 9, 26, sh - 4,
-            26, sh + 20, 21, hipY - 3, 14, hipY + 3,
-            6, hipY + 7, -8, hipY + 7, -15, hipY + 2,
-            -23, hipY - 9, -26, sh + 13, -25, sh - 4,
-        }, C_GREY, 2)
-    end
-    -- chest plate and belly
-    if titleFacing then
-        G.contour({ -23, sh - 2, -9, sh - 5, 12, sh - 5, 23, sh - 2,
-            22, sh + 7, 19, sh + 19, 16, sh + 24,
-            5, sh + 27, -8, sh + 27, -17, sh + 23,
-            -21, sh + 14, -23, sh + 6, -23, sh - 2,
-        }, C_LIGHT, 1.5)
         G.line(0, sh + 1, 0, sh + 23, 1.3, C_DARK)
         G.oellipse(0, sh + 29, 5, 3, C_CYAN, 1.2)
         G.circle(-1, sh + 28, 1, G.WHITE)
     else
-        G.contour({ -20, sh - 2, -7, sh - 5, 13, sh - 5, 22, sh - 2,
-            22, sh + 7, 19, sh + 19, 16, sh + 24,
-            8, sh + 27, -8, sh + 27, -15, sh + 23,
-            -19, sh + 14, -21, sh + 6, -20, sh - 2,
-        }, C_LIGHT, 1.5)
         G.line(7, sh + 1, 5, sh + 23, 1.3, C_DARK)
         G.oellipse(4, sh + 29, 5, 3, C_CYAN, 1.2)
         G.circle(3, sh + 28, 1, G.WHITE)
@@ -783,7 +857,7 @@ local function cyborg(p: P.Pose, titleFacing: boolean)
     -- belt
     G.rrect(-14, hipY - 8, 28, 9, 3, C_DARK, 2)
     G.rrect(-5, hipY - 7, 10, 7, 2, C_GREY, 1.5)
-    scaleAt(2, sh - 24, 1.0)
+    headBegin(p,2,sh-24)
     if titleFacing then
         cyborgHead(2, sh - 24, p.hurt or p.ko, p.t)
     else
@@ -795,7 +869,7 @@ local function cyborg(p: P.Pose, titleFacing: boolean)
         shoulderPad(30, sh + 2, 0)
     else
         cyborgArm(p, true, -21, sh + 10, 10, hipY + 1)
-        shoulderPad(-21, sh + 3, 0, true)
+        shoulderPad(-21, sh + 3, 0)
         local fx, fy = hand(p, true, -21, sh + 10, 10, hipY + 1, 64)
         local bx, by = hand(p, false, 22, sh + 7, 22, hipY - 7, 36)
         normalFx(p, fx, fy, bx, by)
@@ -889,19 +963,14 @@ local function beast(p: P.Pose, titleFacing: boolean)
         local fx = if i == 1 then bfx else ffx
         local fy = if i == 1 then bfy else ffy
         local kx, ky = legJoint(p, hx, hipY, fx, fy)
-        bodyLimb(p, hx, hipY, kx, ky, fx, fy - 3, 4.5, B_SUIT)
-        if titleFacing then G.oellipse(fx + 2, fy - 2.5, 5, 3, B_GREY, 1.8)
-        else
-            boot(lerp(kx,fx,.55),lerp(ky,fy,.55),fx,fy,4.9,B_SUIT,B_SUIT)
-            G.line(fx-3,fy-3,fx+5,fy-3,2.8,B_MAGENTA)
-        end
+        bodyLimb(p, hx, hipY, kx, ky, fx, fy - (if titleFacing then 3 else 4), 4.5, B_SUIT)
+        -- The grey shoes are part of the costume in both views.
+        G.save();G.translate(fx,fy-3);G.rotate(footPitch(p,i==2))
+        G.oellipse(2,.5,5,3,B_GREY,1.8)
+        G.restore()
     end
     leanBegin(p, hipY)
-    if titleFacing then
-        G.poly({ -9, sh - 1, 10, sh - 1, 8, hipY + 1, -7, hipY + 1 }, B_SUIT, 2.5)
-    else
-        G.poly({ -13, sh - 1, 12, sh - 2, 10, hipY + 1, -9, hipY + 1 }, B_SUIT, 2.5)
-    end
+    G.poly({ -9, sh - 1, 10, sh - 1, 8, hipY + 1, -7, hipY + 1 }, B_SUIT, 2.5)
     -- magenta collar, chest strap and hip straps
     G.rrect(-5, sh - 2, 11, 4, 2, B_MAGENTA, 1.4)
     if titleFacing then
@@ -920,7 +989,7 @@ local function beast(p: P.Pose, titleFacing: boolean)
     end
     G.rrect(-8, hipY - 4, 16, 4.5, 2, B_GREY, 1.5)
     G.oellipse(0, hipY - 2, 2.6, 2.6, G.shade(B_GREY, 0.15), 1.2)
-    scaleAt(2, sh - 24, 1.0)
+    headBegin(p,2,sh-24)
     if titleFacing then
         beastHead(2, sh - 24, p.hurt or p.ko, p.t)
     else
@@ -1020,10 +1089,11 @@ end
 local function raven(p: P.Pose, titleFacing: boolean)
     frameBegin(p, 3, 18)
     local b = bob(p) * 0.5
-    local sway=math.sin(p.t*5)*p.walk*7+math.abs(p.ext)*8+(if p.air then 8+(1-math.abs(p.rise))*8 else 0)
+    local sway=p.walk*29+p.dash*20+math.sin(p.t*6)*p.walk*6+math.abs(p.ext)*16+(if p.air then 14+(1-math.abs(p.rise))*12 else 0)
+    local lift=p.walk*18+p.dash*13+(if p.air then 9 else 0)
     local top = -63 + b
     leanBegin(p, -40)
-    local showArms=p.move~=0 or p.hurt or (p.air and not titleFacing)
+    local showArms=p.move~=0 or p.hurt or ((p.air or p.walk>.12) and not titleFacing)
     local fsx: number, fsy: number, bsx: number, bsy: number
     if titleFacing then
         fsx, fsy = 8, top + 8
@@ -1054,27 +1124,28 @@ local function raven(p: P.Pose, titleFacing: boolean)
         if titleFacing then G.oellipse(bhx, bhy, 4.4, 4.4, G.shade(V_SKIN, -0.15), 2)
         else fist(ex,ey,bhx,bhy,.9,G.shade(V_SKIN,-.15)) end
     end
-    -- the long cloak, a smooth bell with a centre seam
+    -- One bell-shaped cloak model. Motion pulls the hem back without widening
+    -- the shoulders or upper body compared with the start menu.
+    local trail = if titleFacing then 0 else sway
+    local hemLift = if titleFacing then 0 else lift
+    G.contour({ -12, top, -3, top - 4, 9, top - 4, 14, top,
+        16, top + 28, 17, -13, 27 + (if titleFacing then sway else 0), -3 - hemLift * .2,
+        14, 5 - hemLift * .2, -11 - trail * .4, 5 - hemLift * .6, -23 - sway, -3 - hemLift,
+        -17 - trail * .45, -23 - hemLift * .5, -16, top + 16, -12, top,
+    }, V_CLOAK, 1.8)
     if titleFacing then
-        G.contour({ -12, top, -3, top - 4, 9, top - 4, 14, top,
-            16, top + 28, 17, -13, 27 + sway, -3,
-            14, 5, -11, 5, -23 - sway, -3,
-            -17, -23, -16, top + 16, -12, top,
-        }, V_CLOAK, 1.8)
         G.line(1, top + 6, 1, -1, 2, INK)
     else
-        G.contour({ -16, top, -7, top - 5, 11, top - 4, 17, top,
-            17, top + 28, 17, -13, 23, -3,
-            9, 5, -12, 4, -25 - sway, -3,
-            -19, -23, -18, top + 16, -16, top,
-        }, V_CLOAK, 1.8)
-        G.line(6, top + 6, 5, -1, 1.5, INK)
+        G.contour({ -10,top+10, -16,top+30,-17-sway*.6,-12-lift*.8,-22-sway,-3-lift,
+            -17-sway*.6,-lift*.6,-10,-2-lift*.4,-4,1-lift*.2,
+            -9,-15,-5,top+26,-10,top+10 },V_FOLD)
+        G.polyline({ 6,top+6,8,-28,5,-1-lift*.3 },1.5,INK)
     end
-    G.line(-8, top + 10, -12 - sway * 0.5, -3, 1.8, V_FOLD)
+    G.line(-8,top+10,-12-sway*.5,-3-lift*.7,1.8,V_FOLD)
     if titleFacing then
         G.line(10, top + 10, 14, -3, 1.8, V_FOLD)
     else
-        G.line(13, top + 10, 17, -3, 1.8, V_FOLD)
+        G.line(10, top + 10, 14, -3 - lift * .2, 1.8, V_FOLD)
     end
     -- Let the kick emerge from the cloak so its direction matches the hitbox.
     if p.move==4 and titleFacing then
@@ -1083,7 +1154,7 @@ local function raven(p: P.Pose, titleFacing: boolean)
         bodyLimb(p, 3, -32, kx, ky, fx, fy - 3, 6, INK)
         G.oellipse(fx + 4, fy - 3, 7, 4, V_CLOAK, 1.4)
     end
-    scaleAt(1, top - 26, 1.0)
+    headBegin(p,1,top-26)
     if titleFacing then
         ravenHead(1, top - 26, p.hurt or p.ko, p.t)
     else
@@ -1119,6 +1190,14 @@ local S_PURPLE = H(0x8541B5)
 local S_SKIRT = H(0x602088)
 local S_SILVER = H(0xC9D3E8)
 local S_GEM = H(0x28C048)
+
+local function starfireCuff(ex: number, ey: number, hx: number, hy: number, front: boolean)
+    G.save();G.translate(lerp(ex,hx,.55),lerp(ey,hy,.55))
+    G.rotate(math.atan2(hy-ey,hx-ex)-math.pi/2)
+    G.oellipse(0,0,if front then 4.6 else 4.2,if front then 4.2 else 3.8,G.shade(S_SILVER,if front then 0 else -.15),if front then 1.8 else 1.6)
+    if front then G.circle(0,0,1.6,S_GEM) end
+    G.restore()
+end
 
 -- The mass of hair behind the head, drawn before the head.
 local function starfireHairBack(hx: number, hy: number, t: number, walk: number, bottom: number)
@@ -1194,11 +1273,11 @@ local function starfire(p: P.Pose, titleFacing: boolean)
     local hx, hy = 2, sh - 28
     -- Hair roots move with the head; only the trailing tips sway independently.
     leanBegin(p, hipY)
-    scaleAt(hx, hy, 1.0)
+    headBegin(p,hx,hy)
     if titleFacing then
         starfireHairBack(hx, hy, p.t, p.walk, -48)
     else
-        Profile.starfireHair(hx+3,hy,p.t,p.walk+math.abs(p.ext)*.65+(if p.air then .3+math.max(0,-p.rise)*.7 else 0))
+        Profile.starfireHair(hx+3,hy,p.t,p.walk+p.dash*.7+math.abs(p.ext)*.65+(if p.air then .4+math.max(0,-p.rise)*.7 else 0))
     end
     G.restore()
     G.restore()
@@ -1208,16 +1287,15 @@ local function starfire(p: P.Pose, titleFacing: boolean)
         bsx, bsy = -7, sh + 3
         bhx, bhy = hand(p, false, bsx, bsy, -11, hipY - 2, 24)
     else
-        bsx, bsy = 10, sh + 2
+        bsx, bsy = 8, sh + 2
         bhx, bhy = hand(p, false, bsx, bsy, 17, hipY - 8, 28)
     end
     local bex, bey = armJoint(p, bsx, bsy, bhx, bhy, 4)
     bodyLimb(p, bsx, bsy, bex, bey, bhx, bhy, 3.6, G.shade(S_SKIN, -0.12))
+    starfireCuff(bex,bey,bhx,bhy,false)
     if titleFacing then
-        G.oellipse(lerp(bex, bhx, 0.55), lerp(bey, bhy, 0.55), 4.2, 3.8, G.shade(S_SILVER, -0.15), 1.6)
         G.oellipse(bhx, bhy, 3.8, 3.8, G.shade(S_SKIN, -0.12), 1.8)
     else
-        forearmShell(bex,bey,bhx,bhy,.38,5.5,3.1,G.shade(S_SILVER,-.15),nil)
         fist(bex,bey,bhx,bhy,.8,G.shade(S_SKIN,-.12))
     end
     G.restore()
@@ -1231,29 +1309,19 @@ local function starfire(p: P.Pose, titleFacing: boolean)
         local k = if i == 1 then -0.15 else 0
         local kx, ky = legJoint(p, x, hipY, fx, fy)
         bodyLimb(p, x, hipY, kx, ky, fx, fy - 4, 5.5, G.shade(S_SKIN, k))
-        bodyLimb(p, kx, ky, lerp(kx, fx, 0.5), lerp(ky, fy, 0.5), fx, fy - 4, 6, G.shade(S_SKIRT, k))
-        if titleFacing then G.oellipse(kx, ky, 3.6, 3.2, G.shade(S_SILVER, k), 1.6)
-        else
-            local dx,dy=fx-kx,fy-ky
-            local d=math.max(1,math.sqrt(dx*dx+dy*dy))
-            G.line(kx-dy/d*3,ky+dx/d*3,kx+dy/d*3,ky-dx/d*3,2.4,G.shade(S_SILVER,k))
-        end
-        G.poly({ fx - 3, fy - 7, fx + 4, fy - 6, fx + 2, fy + 2 }, G.shade(S_SKIRT, k), 1.8)
+        -- Shared knee-high purple boot, round silver plate and pointed toe.
+        G.limb(kx,ky,lerp(kx,fx,.5),lerp(ky,fy-4,.5),fx,fy-4,6,G.shade(S_SKIRT,k))
+        G.oellipse(kx,ky,3.6,3.2,G.shade(S_SILVER,k),1.6)
+        G.save();G.translate(fx,fy-3);G.rotate(footPitch(p,i==2))
+        G.poly({ -3,-4,4,-3,2,5 },G.shade(S_SKIRT,k),1.8)
+        G.restore()
     end
     leanBegin(p, hipY)
-    -- silver shoulder armour and purple collar
-    if titleFacing then
-        G.poly({ -8, sh - 1, 9, sh - 1, 7, hipY + 1, -6, hipY + 1 }, S_SKIN, 2.2)
-    else
-        G.poly({ -11, sh - 1, 11, sh - 2, 9, hipY + 1, -8, hipY + 1 }, S_SKIN, 2.2)
-    end
-    G.rrect(if titleFacing then -7 else -10, sh - 2, if titleFacing then 15 else 21, 5, 2.5, S_SILVER, 1.8)
+    -- The same narrow torso, collar and crop top as the menu model.
+    G.poly({ -8, sh - 1, 9, sh - 1, 7, hipY + 1, -6, hipY + 1 }, S_SKIN, 2.2)
+    G.rrect(-7, sh - 2, 15, 5, 2.5, S_SILVER, 1.8)
     G.oellipse(0, sh, 5, 3.5, S_PURPLE, 1.6)
-    if titleFacing then
-        G.poly({ -7, sh + 2, 8, sh + 2, 6, sh + 13, -5, sh + 13 }, S_PURPLE, 2)
-    else
-        G.poly({ -10, sh + 2, 10, sh + 1, 8, sh + 13, -7, sh + 13 }, S_PURPLE, 2)
-    end
+    G.poly({ -7, sh + 2, 8, sh + 2, 6, sh + 13, -5, sh + 13 }, S_PURPLE, 2)
     if titleFacing then
         G.oellipse(0, sh + 2, 3, 3, S_SILVER, 1)
         G.circle(0, sh + 2, 1.5, S_GEM)
@@ -1264,7 +1332,7 @@ local function starfire(p: P.Pose, titleFacing: boolean)
     -- purple skirt with a silver front plate
     G.poly({ -6, hipY - 3, 7, hipY - 3, 10, hipY + 8, -8, hipY + 8 }, S_SKIRT, 2.2)
     G.rrect(-6, hipY - 4, 13, 3, 1, S_SILVER, 1)
-    scaleAt(hx, hy, 1.0)
+    headBegin(p,hx,hy)
     if titleFacing then
         starfireHead(hx, hy, p.hurt or p.ko, p.t)
         starfireHairTop(hx, hy)
@@ -1282,15 +1350,12 @@ local function starfire(p: P.Pose, titleFacing: boolean)
         fhx, fhy = hand(p, true, fsx, fsy, 12, hipY - 5, 34)
     end
     local fex, fey = armJoint(p, fsx, fsy, fhx, fhy, -4)
-    if titleFacing then G.oellipse(fsx, fsy - 1, 4.2, 3.8, S_SILVER, 1.8) end
     bodyLimb(p, fsx, fsy, fex, fey, fhx, fhy, 3.6, S_SKIN)
+    G.oellipse(fsx,fsy-1,4.2,3.8,S_SILVER,1.8)
+    starfireCuff(fex,fey,fhx,fhy,true)
     if titleFacing then
-        G.oellipse(lerp(fex, fhx, 0.55), lerp(fey, fhy, 0.55), 4.6, 4.2, S_SILVER, 1.8)
-        G.circle(lerp(fex, fhx, 0.55), lerp(fey, fhy, 0.55), 1.6, S_GEM)
         G.oellipse(fhx, fhy, 4, 4, S_SKIN, 1.8)
     else
-        forearmShell(fex,fey,fhx,fhy,.35,6,3.5,S_SILVER,nil)
-        G.oellipse(lerp(fex,fhx,.57),lerp(fey,fhy,.57),2,2,S_GEM,.7)
         fist(fex,fey,fhx,fhy,.9,S_SKIN)
     end
     glowHands(p, fhx, fhy, bhx, bhy, H(0x5CFF6A))
@@ -1301,18 +1366,19 @@ end
 
 -- Small character-specific flight cues sit behind the figure, below the face.
 local function flightFx(p: P.Pose)
-    if not p.air or p.down>0 or p.hurt then return end
-    local strength=math.min(1,p.airTime/.1)
+    if (not p.air and p.walk<.1) or p.down>0 or p.hurt then return end
+    local strength=if p.air then math.min(1,p.airTime/.1) else p.walk*.7
+    local clock=if p.air then p.airTime else p.t
     if p.style=='starfire' then
         for i=0,2 do
-            local k=(p.airTime*2.5+i/3)%1
-            G.circle(-12-i*5,4+k*22,1.5+(1-k)*2,G.fade(H(0xACFF72),(1-k)*strength*.65))
+            local k=(clock*2.5+i/3)%1
+            G.circle(-16-i*8-p.walk*k*25,4+k*22,1.5+(1-k)*3,G.fade(H(0xACFF72),(1-k)*strength*.65))
         end
     elseif p.style=='raven' then
-        G.ring(0,7,17+math.sin(p.airTime*7)*3,4,1.5,G.fade(H(0xA574F1),strength*.6))
+        G.ring(0,7,23+math.sin(clock*7)*4,5,1.5,G.fade(H(0xA574F1),strength*.6))
         for i=0,2 do
-            local angle=p.airTime*5+i*math.pi*2/3
-            G.circle(math.cos(angle)*19,7+math.sin(angle)*4,1.8,G.fade(H(0xC8A3FF),strength*.7))
+            local angle=clock*5+i*math.pi*2/3
+            G.circle(math.cos(angle)*25,7+math.sin(angle)*5,2.2,G.fade(H(0xC8A3FF),strength*.7))
         end
     end
 end
@@ -1327,13 +1393,14 @@ function HX.projectileOrigin(kind: string, p: P.Pose): (number, number)
     local b = bob(p)
     if kind == 'cyborg' then
         local x, y = hand(p, true, -21, -83 + b, 10, -43 + b, 64)
-        return x + 4, y
+        return bodyPoint(p,-44+b,x+4,y)
     elseif kind == 'starfire' then
         local x, y = hand(p, true, -8, -76 + b * 0.4, 12, -56 + b * 0.4, 34)
-        return x + 4, y - 10 - math.sin(p.t * 2.6) * 3
+        local ox,oy=bodyPoint(p,-51+b*.4,x+4,y)
+        return ox,oy-hoverOffset(p,10)
     end
     local x, y = hand(p, true, -10, -58 + b, 14, -41 + b, 33)
-    return x + 4, y
+    return bodyPoint(p,-34+b,x+4,y)
 end
 
 function HX.isHero(kind: string): boolean
@@ -1342,7 +1409,7 @@ end
 
 function HX.draw(kind: string, p: P.Pose, titleFacing: boolean?)
     p.style = if titleFacing then '' else kind
-    if not titleFacing then flightFx(p) end
+    if not titleFacing then flightFx(p);actionFx(p) end
     if not titleFacing and PowerArt.form(kind, p) then
         PowerArt.effects(kind, p)
         return
