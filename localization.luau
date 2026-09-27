@@ -70,6 +70,8 @@ L.catalog = {
     ['PRESS SPACE / START'] = '按 SPACE／START 開始',
     ['X: ATTACK   A: JUMP   B: SPECIAL   Y: SECONDARY   RT: ULTIMATE   START: JOIN / PAUSE'] = 'X：攻擊   A：跳躍   B：特殊技   Y：第二招式   RT：必殺技   START：加入／暫停',
     ['1-4 PLAYERS   CONTROLLERS CONNECTED: {count}'] = '1–4 人遊玩　已連接控制器：{count}',
+    ['TEEN TITANS AND RELATED CHARACTERS BELONG TO THEIR RESPECTIVE RIGHTS HOLDERS.'] = '《少年悍將》及相關角色的權利均屬於各自的權利人。',
+    ['THIS PROJECT IS NOT AFFILIATED WITH, ENDORSED BY, OR SPONSORED BY THEM.'] = '本作品與上述權利人無關，亦未獲其認可或贊助。',
     ['UNOFFICIAL FAN GAME'] = '非官方同人遊戲',
     ['TAB / LB: LANGUAGE'] = 'TAB／LB：切換語言',
     ['CHOOSE YOUR TITAN'] = '選擇你的悍將', ['PLAYER {player}'] = '玩家 {player}',
