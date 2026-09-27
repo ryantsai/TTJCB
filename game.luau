@@ -2372,6 +2372,8 @@ local function drawTitle(g: Game)
 
     -- logo
     G.vgrad(0, 0, W, 330, G.fade(G.hex(0x140C24), 0.85), G.fade(G.hex(0x140C24), 0))
+    G.text('TEEN TITANS AND RELATED CHARACTERS BELONG TO THEIR RESPECTIVE RIGHTS HOLDERS.', 18, 28, 10, G.hex(0xCFC6D8))
+    G.text('THIS PROJECT IS NOT AFFILIATED WITH, ENDORSED BY, OR SPONSORED BY THEM.', 18, 44, 10, G.hex(0xCFC6D8))
     local bob = math.sin(g.t * 2) * 4
     G.save()
     G.translate(W / 2, 134 + bob)

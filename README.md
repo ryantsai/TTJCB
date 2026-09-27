@@ -3,6 +3,12 @@
 An unofficial fan-made 2D belt-scrolling beat-'em-up for 1–4 players, built as a
 Rive CLI project. The whole game is Luau scripts drawing vector art.
 
+## Fan-project notice
+
+Unofficial Teen Titans fan game. Teen Titans and related characters belong to
+their respective rights holders. This project is not affiliated with, endorsed
+by, or sponsored by them.
+
 ```bash
 rive .            # play in the preview window (rebuilds on save)
 rive . --verify   # type-check
