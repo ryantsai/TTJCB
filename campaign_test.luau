@@ -16,6 +16,7 @@ local function game(): any
     press(app,257)
     press(app,257)
     press(app,257)
+    press(app,257)
     step(app,90)
     app.g.slots[1].fighter.invuln=10000
     return app

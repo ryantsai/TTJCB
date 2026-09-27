@@ -141,9 +141,10 @@ return function(): Tests
             expect(app.g.locale).is('en')
             pad(app, false)
             press(app, 257) -- Level map.
-            press(app, 257)
-            press(app, 257)
-            press(app, 257)
+            press(app, 257) -- Level select.
+            press(app, 257) -- Character select.
+            press(app, 257) -- Ready.
+            press(app, 257) -- Start.
             step(app, 80)
             pad(app, true)
             expect(app.g.mode).is('play')
@@ -157,9 +158,10 @@ return function(): Tests
             app.g.tutorialSeen = true
             press(app, 258)
             press(app, 257) -- Level map.
-            press(app, 257)
-            press(app, 257)
-            press(app, 257)
+            press(app, 257) -- Level select.
+            press(app, 257) -- Character select.
+            press(app, 257) -- Ready.
+            press(app, 257) -- Start.
             step(app, 80)
             expect(app.g.bannerSub).is('雀躍城 / 街頭掃蕩')
             local g = app.g

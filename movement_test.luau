@@ -28,6 +28,7 @@ local function game(hero: number): any
     app.g.tutorialSeen=true -- Onboarding has its own real-input regression suite.
     press(app, 257) -- Enter the level map.
     press(app, 257)
+    press(app, 257) -- Confirm the level and open character selection.
     app.g.slots[1].hero = hero
     press(app, 257)
     press(app, 257)

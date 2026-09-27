@@ -17,10 +17,16 @@
         <StateMachine name="Game" id="0:7">
             <StateMachineLayer name="Root" id="0:8">
                 <AnyState id="0:9" x="200" y="-120"/>
-                <EntryState id="0:10" x="0" y="0"/>
+                <EntryState id="0:10" x="0" y="0">
+                    <StateTransition stateToId="0:12"/>
+                </EntryState>
+                <AnimationState x="200" y="0" animationId="0:20" id="0:12">
+                    <FocusActionTarget targetId="0:42"/>
+                </AnimationState>
                 <ExitState id="0:11" x="400" y="-120"/>
             </StateMachineLayer>
         </StateMachine>
+        <LinearAnimation duration="30" loopValue="loop" name="Keyboard Focus" id="0:20"/>
     </Artboard>
     <ViewModel name="Window" id="0:60">
         <ViewModelPropertyNumber name="completedLevels" id="0:66"/>

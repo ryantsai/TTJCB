@@ -29,6 +29,7 @@ local function app(cleared:number?,ready:boolean?):(any,any)
     return a,props
 end
 local function launch(a:any)
+    if a.g.mode=='map' then press(a,257) end
     press(a,257);press(a,257);press(a,257);step(a,90)
     a.g.slots[1].fighter.invuln=10000
 end
@@ -50,14 +51,26 @@ end
 
 return function():Tests
     return function(test:Tester)
+        test.case('start opens map, then level select, then character selection with working back and lock states',function(expect)
+            local a=app()
+            press(a,257);expect(a.g.mode).is('map')
+            press(a,257);expect(a.g.mode).is('level_select')
+            press(a,68);expect(a.g.selectedLevel).is(2)
+            press(a,257);expect(a.g.mode).is('level_select')
+            press(a,256);expect(a.g.mode).is('map')
+            click(a,180,356);expect(a.g.mode).is('level_select')
+            expect(a.g.selectedLevel).is(1)
+            click(a,1100,579);expect(a.g.mode).is('select')
+        end)
         test.case('new players can inspect locked levels but cannot launch them by keyboard or pointer',function(expect)
             local a=app();press(a,77)
             expect(a.g.mode).is('map');expect(a.g.selectedLevel).is(1)
             expect(P.canPlay(a.g.progress,1)).is(true)
             for level=2,4 do
                 press(a,68);press(a,257);click(a,1100,579)
-                expect(a.g.selectedLevel).is(level);expect(a.g.mode).is('map')
+                expect(a.g.selectedLevel).is(level);expect(a.g.mode).is('level_select')
                 expect(P.canPlay(a.g.progress,level)).is(false)
+                press(a,256);expect(a.g.mode).is('map')
             end
             click(a,180,356);launch(a)
             expect(a.g.mode).is('play');expect(a.g.runLevel).is(1)
@@ -155,7 +168,7 @@ return function():Tests
                 snapshot(a,p,`0,0,0,{mask}`);snapshot(a,p,'0,0,0,0')
             end
             pad(512);expect(a.g.mode).is('map');expect(a.g.slots[1].dev).is('pad0')
-            pad(32768);pad(1);expect(a.g.mode).is('map');expect(a.g.selectedLevel).is(2)
+            pad(32768);pad(1);expect(a.g.mode).is('level_select');expect(a.g.selectedLevel).is(2)
             pad(16384);pad(1);expect(a.g.mode).is('select')
             pad(1);pad(512);expect(a.g.mode).is('play')
             snapshot(a,p,'');expect(a.g.paused).is(true);expect(a.g.devs.pad0).is(nil)
