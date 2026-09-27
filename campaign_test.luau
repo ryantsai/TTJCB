@@ -18,6 +18,27 @@ local function game(): any
     app.g.slots[1].fighter.invuln=10000
     return app
 end
+local function joinPad(app: any, id: number)
+    for _, down in {true, false} do
+        app.gamepadEvent(app, {
+            deviceId=id, isStandardMapping=true, leftStick=Vector.xy(0,0),
+            dpadLeft=false, dpadRight=false, dpadUp=false, dpadDown=false,
+            south=false, east=false, west=false, north=false, rightShoulder=false,
+            rightTriggerPressed=false, rightTrigger=0, start=down, forward=false, back=false,
+        })
+        step(app,1)
+    end
+end
+local function joinPlayers(app: any, players: number)
+    if players >= 2 then press(app,344) end
+    if players >= 3 then joinPad(app,0) end
+    if players >= 4 then joinPad(app,1) end
+end
+local function enemies(app: any): number
+    local n=0
+    for _,f in app.g.fighters do if f.team==2 and not f.removed then n+=1 end end
+    return n
+end
 local function encounter(app: any, index: number)
     local g=app.g
     g.fighters={g.slots[1].fighter}
@@ -183,6 +204,105 @@ return function(): Tests
             end
             expect(amounts[1]).greaterThan(0)
             expect(amounts[2]).greaterThan(amounts[1]*2)
+        end)
+        test.case('every campaign wave scales exact enemy counts and health for one through four players',function(expect)
+            for players=1,4 do
+                local app=game()
+                joinPlayers(app,players)
+                for index,cp in C.checkpoints do
+                    encounter(app,index)
+                    local regulars=#cp.spawns-(if cp.boss then 1 else 0)
+                    local extra=math.floor(regulars*.5*(players-1)+.5)
+                    expect(enemies(app)).is(#cp.spawns+extra)
+                    expect(app.g.healthPlayers).is(players)
+                    local bosses=0
+                    for _,f in app.g.fighters do
+                        if f.team==2 then
+                            local def=C.enemies[f.kind]
+                            local expected=math.floor(def.hp*(1+(players-1)*(if def.boss then .6 else .25))+.5)
+                            expect(f.maxHp).is(expected)
+                            expect(f.hp).is(expected)
+                            if def.boss then bosses+=1 end
+                        end
+                    end
+                    expect(bosses).is(if cp.boss then 1 else 0)
+                end
+            end
+        end)
+        test.case('mid-wave joins scale wounded enemies without reviving dead ones and queue extras only once',function(expect)
+            local app=game()
+            encounter(app,12)
+            local boss=app.g.boss
+            local shock=enemy(app,'shock')
+            local dead=enemy(app,'runner')
+            boss.hp=boss.maxHp*.37
+            shock.hp=shock.maxHp*.6
+            dead.hp=0
+            dead.state='down'
+            dead.st=0
+            press(app,344)
+            expect(boss.maxHp).is(848)
+            expect(math.abs(boss.hp/boss.maxHp-.37)).lessThan(.000001)
+            expect(shock.maxHp).is(85)
+            expect(math.abs(shock.hp/shock.maxHp-.6)).lessThan(.000001)
+            expect(dead.hp).is(0)
+            expect(#app.g.pending).is(3)
+            for _,sp in app.g.pending do
+                expect(C.isBoss(sp.kind)).is(false)
+                expect(sp.delay).greaterThan(app.g.waveT)
+            end
+            step(app,10)
+            expect(#app.g.pending).is(3)
+            joinPad(app,0)
+            expect(#app.g.pending).is(5)
+            expect(boss.maxHp).is(1166)
+            joinPad(app,1)
+            expect(#app.g.pending).is(8)
+            expect(boss.maxHp).is(1484)
+            expect(math.abs(boss.hp/boss.maxHp-.37)).lessThan(.000001)
+            app.g.waveT=200
+            step(app,1)
+            expect(#app.g.pending).is(0)
+            for _,f in app.g.fighters do
+                if f.team==2 and f.hp>0 then expect(f.maxHp).is(C.healthFor(f.kind,4)) end
+            end
+        end)
+        test.case('respawning players count, eliminated players do not, and continues never duplicate extras',function(expect)
+            local app=game()
+            joinPlayers(app,2)
+            encounter(app,12)
+            local boss=app.g.boss
+            boss.hp=boss.maxHp*.37
+            local slot=app.g.slots[2]
+            slot.fighter=nil
+            slot.respawn=1
+            slot.lives=2
+            step(app,1)
+            expect(boss.maxHp).is(848)
+            expect(app.g.healthPlayers).is(2)
+            slot.respawn=0
+            slot.lives=0
+            slot.out=true
+            step(app,1)
+            expect(boss.maxHp).is(530)
+            expect(math.abs(boss.hp/boss.maxHp-.37)).lessThan(.000001)
+            local count=enemies(app)
+            for _=1,3 do
+                press(app,344)
+                expect(boss.maxHp).is(848)
+                expect(#app.g.pending).is(0)
+                expect(enemies(app)).is(count)
+                expect(math.abs(boss.hp/boss.maxHp-.37)).lessThan(.000001)
+                slot.out=true
+                slot.fighter=nil
+                slot.respawn=0
+                step(app,1)
+            end
+            encounter(app,13)
+            expect(enemies(app)).is(#C.checkpoints[13].spawns)
+            for _,f in app.g.fighters do
+                if f.team==2 then expect(f.maxHp).is(C.enemies[f.kind].hp) end
+            end
         end)
         test.case('co-op scales boss health and adds regular reinforcements',function(expect)
             local app=game()

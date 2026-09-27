@@ -208,6 +208,8 @@ type Pickup = { x: number, y: number, t: number, dead: boolean }
 type Game = {
     mode: string, -- title, select, play, over, win
     stage: number,
+    healthPlayers: number,
+    wavePlayers: number,
     modeT: number,
     t: number,
     devs: { [string]: Device },
@@ -265,7 +267,7 @@ local function newGame(): Game
         table.insert(slots, newSlot(i))
     end
     return {
-        mode = 'title', stage = 1, modeT = 0, t = 0, devs = {}, slots = slots, fighters = {}, shots = {},
+        mode = 'title', stage = 1, healthPlayers = 1, wavePlayers = 1, modeT = 0, t = 0, devs = {}, slots = slots, fighters = {}, shots = {},
         fx = {}, pickups = {}, camX = 0, lockX = -1, cp = 1, pending = {}, waveT = 0, goT = 0,
         shake = 0, hitstop = 0, paused = false, nextId = 1, continueT = 0, banner = '',
         bannerSub = '', bannerT = 0, selectT = -1, boss = nil,
@@ -322,7 +324,7 @@ end
 local function activeSlots(g: Game): number
     local n = 0
     for _, s in g.slots do
-        if s.dev ~= '' then
+        if s.dev ~= '' and not s.out then
             n += 1
         end
     end
@@ -363,8 +365,7 @@ local function newFighter(g: Game, kind: string, team: number, x: number, y: num
     local e = ENEMIES[kind]
     if e then
         local n = math.max(1, activeSlots(g))
-        local hpScale = if isBoss(kind) then 1 + 0.45 * (n - 1) else 1 + 0.15 * (n - 1)
-        f.hp = math.floor(e.hp * hpScale)
+        f.hp = Campaign.healthFor(kind, n)
         f.maxHp = f.hp
         f.speed = e.speed * rnd(0.9, 1.1)
         f.scale = e.scale
@@ -1291,6 +1292,43 @@ local function spawnEnemy(g: Game, kind: string, side: number)
     end
 end
 
+local function addCoopReinforcements(g: Game, cp: Checkpoint, players: number)
+    if players <= g.wavePlayers then return end
+    local regulars: { string } = {}
+    for _, sp in cp.spawns do
+        if not isBoss(sp.kind) then table.insert(regulars, sp.kind) end
+    end
+    local previous = Campaign.extraEnemies(cp, g.wavePlayers)
+    local total = Campaign.extraEnemies(cp, players)
+    for i = previous + 1, total do
+        table.insert(g.pending, {
+            kind = regulars[1 + (i - 1) % #regulars],
+            delay = g.waveT + 1.5 + (i - previous) * .7,
+            side = if i % 2 == 0 then 1 else -1,
+        })
+    end
+    -- Keep the wave's high-water mark: continuing cannot spawn the same extras twice.
+    g.wavePlayers = players
+end
+
+local function syncCoopDifficulty(g: Game)
+    local players = math.max(1, activeSlots(g))
+    if players ~= g.healthPlayers then
+        for _, f in g.fighters do
+            if f.team == 2 and f.hp > 0 and not f.removed then
+                local maxHp = Campaign.healthFor(f.kind, players)
+                -- Preserve the exact remaining fraction, including over repeated joins.
+                f.hp = f.hp / f.maxHp * maxHp
+                f.maxHp = maxHp
+            end
+        end
+        g.healthPlayers = players
+    end
+    if g.lockX >= 0 and g.cp <= #CHECKPOINTS then
+        addCoopReinforcements(g, CHECKPOINTS[g.cp], players)
+    end
+end
+
 local function beginCheckpoint(g: Game, cp: Checkpoint)
     g.stage = cp.stage
     g.lockX = cp.x
@@ -1300,11 +1338,8 @@ local function beginCheckpoint(g: Game, cp: Checkpoint)
     for _, sp in cp.spawns do
         table.insert(g.pending, { kind = sp.kind, delay = sp.delay, side = sp.side })
     end
-    -- more villains for more Titans
-    local extra = math.floor((#cp.spawns - (if cp.boss then 1 else 0)) * 0.35 * (n - 1) + 0.5)
-    for i = 1, extra do
-        table.insert(g.pending, { kind = cp.spawns[2 + (i - 1) % (#cp.spawns - 1)].kind, delay = 1.5 + i * 0.7, side = if i % 2 == 0 then 1 else -1 })
-    end
+    g.wavePlayers = 1
+    addCoopReinforcements(g, cp, n)
     if cp.pizza then
         table.insert(g.pickups, { x = cp.x + rnd(300, 900), y = rnd(FMIN + 30, FMAX - 30), t = 0, dead = false })
     end
@@ -1340,6 +1375,8 @@ local function startGame(g: Game)
             s.fighter = nil
         end
     end
+    g.healthPlayers = math.max(1, activeSlots(g))
+    g.wavePlayers = 1
     g.banner = 'TITANS, GO!'
     g.bannerSub = Campaign.stages[g.stage].name .. ' / ' .. Campaign.stages[g.stage].subtitle
     g.bannerT = 2.4
@@ -1508,6 +1545,7 @@ local function updatePlay(g: Game, dt: number)
         return
     end
 
+    syncCoopDifficulty(g)
     g.goT = math.max(0, g.goT - dt)
     g.bannerT = math.max(0, g.bannerT - dt)
     g.shake = math.max(0, g.shake - dt)
@@ -1984,7 +2022,7 @@ local function drawHud(g: Game)
     G.rrect(16, 114, 420, 34, 8, G.fade(G.INK, .88))
     G.text(`{g.stage}/4  {Campaign.stages[g.stage].name}  -  WAVE {cp.wave}/4`, 30, 124, 13, G.hex(0xFFE14D))
     if g.lockX >= 0 then
-        G.text(`ENEMIES {enemiesLeft(g) + #g.pending}`, W - 26, 124, 14, G.WHITE, 1)
+        G.text(`{math.max(1, activeSlots(g))}P  ENEMIES {enemiesLeft(g) + #g.pending}`, W - 26, 124, 14, G.WHITE, 1)
     end
     local b = g.boss
     if b and not b.removed then

@@ -62,7 +62,23 @@ holding RT does not repeat the ultimate. Energy fills over time and whenever you
 take a hit. The HUD shows the cost and readiness of B, Y and RT; the full meter turns gold.
 Pizza heals.
 Fight through **four stages and sixteen encounters**, with larger mixed waves and
-reinforcements that scale up for co-op. Each stage ends with a boss; clearing the
+reinforcements that scale up for co-op:
+
+| Players | Regular enemy count | Regular enemy HP | Boss HP |
+|---|---|---|---|
+| 1 | 1x | 1x | 1x |
+| 2 | 1.5x | 1.25x | 1.6x |
+| 3 | 2x | 1.5x | 2.2x |
+| 4 | 2.5x | 1.75x | 2.8x |
+
+Counts and maximum HP round to the nearest whole number. Boss encounters keep one
+boss and scale the accompanying regular enemies. Joining mid-wave adds staggered
+reinforcements and adjusts living enemies' HP while preserving their remaining
+health percentage. Players waiting to respawn still count; players out of lives
+do not. Existing reinforcements remain for that wave, and continuing does not add
+them a second time. The next wave uses the current active player count.
+
+Each stage ends with a boss; clearing the
 first three restores health and energy and awards one life (up to three).
 
 | Stage | Setting | Boss |

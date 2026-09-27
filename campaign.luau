@@ -62,4 +62,18 @@ function C.isBoss(kind: string): boolean
     local def = C.enemies[kind]
     return def ~= nil and def.boss
 end
+-- Co-op tuning lives here so every spawn and drop-in uses the same rules.
+function C.healthFor(kind: string, players: number): number
+    local def = C.enemies[kind]
+    local extra = math.clamp(players, 1, 4) - 1
+    return math.floor(def.hp * (1 + extra * (if def.boss then .60 else .25)) + .5)
+end
+
+function C.extraEnemies(cp: Checkpoint, players: number): number
+    local regulars = 0
+    for _, sp in cp.spawns do
+        if not C.isBoss(sp.kind) then regulars += 1 end
+    end
+    return math.floor(regulars * .5 * (math.clamp(players, 1, 4) - 1) + .5)
+end
 return C
