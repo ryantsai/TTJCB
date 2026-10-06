@@ -60,6 +60,70 @@ return function(): Tests
             expect(app.g.locale).is('ja')
             expect(props.languageRevision.value).is(3)
         end)
+        test.case('graphics quality hydrates from the host and a title-screen click publishes one revision', function(expect)
+            local app: any = (Game.create :: any)(nil)
+            local props: any = { browserLanguage = {value='en'}, languageRevision = {value=0},
+                browserQuality = {value='medium'}, qualityRevision = {value=0} }
+            local vm: any = {
+                getString = function(self: any, key: string) return props[key] end,
+                getNumber = function(self: any, key: string) return props[key] end,
+                getBoolean = function(self: any, key: string) return props[key] end,
+            }
+            app.init(app, {viewModel = function(self: any) return vm end})
+            step(app, 1)
+            expect(app.g.quality).is('medium')
+            -- Another tab updates the preference without claiming a local choice.
+            props.browserQuality.value='low';step(app,1)
+            expect(app.g.quality).is('low');expect(props.qualityRevision.value).is(0)
+            props.browserQuality.value='bogus';step(app,1)
+            expect(app.g.quality).is('low')
+            -- Panel cells: x 1164-1256, rows at y 124, 174, 224 (46 tall).
+            local high=pointer(1,1200,140)
+            app.pointerDown(app,high);app.pointerUp(app,high)
+            expect(app.g.quality).is('high');expect(props.browserQuality.value).is('high')
+            expect(props.qualityRevision.value).is(1)
+            local medium=pointer(2,1200,190)
+            app.pointerDown(app,medium);app.pointerUp(app,pointer(3,1200,240))
+            expect(app.g.quality).is('high');expect(props.qualityRevision.value).is(1)
+            app.pointerUp(app,medium);expect(app.g.quality).is('medium')
+            expect(props.qualityRevision.value).is(2)
+            -- Outside the cells, and away from the title screen, nothing happens.
+            local gap=pointer(4,1200,100)
+            app.pointerDown(app,gap);app.pointerUp(app,gap)
+            expect(props.qualityRevision.value).is(2)
+            app.g.mode='map'
+            local low=pointer(5,1200,240)
+            app.pointerDown(app,low);app.pointerUp(app,low)
+            expect(app.g.quality).is('medium');expect(props.qualityRevision.value).is(2)
+        end)
+        test.case('the title screen offers a way back only when the host has one, and a click publishes one revision', function(expect)
+            local app: any = (Game.create :: any)(nil)
+            local props: any = { homeAvailable = {value=false}, homeRevision = {value=0} }
+            local vm: any = {
+                getString = function(self: any, key: string) return props[key] end,
+                getNumber = function(self: any, key: string) return props[key] end,
+                getBoolean = function(self: any, key: string) return props[key] end,
+            }
+            app.init(app, {viewModel = function(self: any) return vm end})
+            step(app, 1)
+            expect(app.g.homeShown).is(false)
+            -- Button: x 18-~150, y 70-108 on the title screen.
+            local click = pointer(1, 60, 90)
+            app.pointerDown(app, click); app.pointerUp(app, click)
+            expect(props.homeRevision.value).is(0)
+            props.homeAvailable.value = true; step(app, 1)
+            expect(app.g.homeShown).is(true)
+            app.pointerDown(app, click); app.pointerUp(app, click)
+            expect(props.homeRevision.value).is(1)
+            -- Released outside the button, or from another pointer, is not a click.
+            local down = pointer(2, 60, 90)
+            app.pointerDown(app, down); app.pointerUp(app, pointer(2, 400, 400))
+            expect(props.homeRevision.value).is(1)
+            -- Not on the other screens.
+            app.g.mode = 'map'
+            app.pointerDown(app, click); app.pointerUp(app, click)
+            expect(props.homeRevision.value).is(1)
+        end)
         test.case('Japanese hydrates, persists through play, and is selectable with a letterboxed pointer', function(expect)
             local app:any=(Game.create :: any)(nil)
             local props:any={browserLanguage={value='ja'},languageRevision={value=0}}

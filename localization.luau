@@ -118,6 +118,7 @@ L.catalog = {
     ['SLADE INDUSTRIES'] = '史萊德工業', ['PIZZA'] = '披薩', ['ARCADE'] = '遊樂場',
     ['COMICS'] = '漫畫', ['TACOS'] = '墨西哥捲餅', ['MUSIC'] = '音樂',
     ['TOWER GYM'] = '高塔健身房', ['DONUTS'] = '甜甜圈',
+    ['ALL GAMES'] = '所有遊戲', ['GRAPHICS'] = '畫質', ['HIGH'] = '高', ['MEDIUM'] = '中', ['LOW'] = '低',
     ['HOW TO PLAY'] = '操作教學', ["ROBIN'S CRASH COURSE"] = '羅賓的操作教學',
     ['SKIP'] = '略過', ['NEXT >'] = '下一步 >', ['DONE'] = '完成',
     ['CONTROLLER'] = '控制器', ['AUTO DEMO'] = '自動示範', ['BACK TO MENU'] = '回主選單',

@@ -85,7 +85,7 @@ return {
     ['START: RESUME    BACK / ESC: QUIT TO TITLE']='START：再開    BACK／ESC：タイトルへ',
     ['HIVE CARGO']='ハイヴ貨物', ['H.I.V.E. HEX REACTOR']='ハイヴ呪力炉', ['SLADE INDUSTRIES']='スレイド工業',
     ['PIZZA']='ピザ', ['ARCADE']='ゲームセンター', ['COMICS']='コミック', ['TACOS']='タコス', ['MUSIC']='音楽',
-    ['TOWER GYM']='タワージム', ['DONUTS']='ドーナツ', ['HOW TO PLAY']='遊び方', ["ROBIN'S CRASH COURSE"]='ロビンの速習講座',
+    ['TOWER GYM']='タワージム', ['DONUTS']='ドーナツ', ['HOW TO PLAY']='遊び方', ['ALL GAMES']='ゲーム一覧', ['GRAPHICS']='画質', ['HIGH']='高', ['MEDIUM']='中', ['LOW']='低', ["ROBIN'S CRASH COURSE"]='ロビンの速習講座',
     ['SKIP']='スキップ', ['NEXT >']='次へ >', ['DONE']='完了', ['CONTROLLER']='コントローラー',
     ['AUTO DEMO']='自動デモ', ['BACK TO MENU']='メニューへ', ['HIGHLIGHTED BUTTONS PLAY THE DEMO']='光るボタンがロビンを操作しています',
     ['WATCH ROBIN. SKIP ANYTIME.']='ロビンを見て覚えよう。スキップも可能。',

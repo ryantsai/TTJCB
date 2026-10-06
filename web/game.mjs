@@ -5,6 +5,8 @@ import { connectLanguage, initialLanguage } from './language-preference.mjs';
 import { connectTouchGamepad, TOUCH_PAD_ID } from './touch-gamepad.mjs';
 
 import { hostStrings } from './host-strings.mjs';
+import { connectQuality, renderRatio } from './quality.mjs';
+import { connectHome, loadHome } from './home-link.mjs';
 
 const releaseVersion = new URL(import.meta.url).searchParams.get('v');
 const assetUrl = name => new URL(`${name}${releaseVersion ? `?v=${releaseVersion}` : ''}`, location.href).href;
@@ -14,6 +16,10 @@ const notice = document.querySelector('#notice');
 const fullscreen = document.querySelector('#fullscreen');
 const touch = connectTouchGamepad(document.querySelector('#touch-gamepad'), canvas);
 let locale = initialLanguage();
+let quality = 'medium';
+let releaseQuality;
+let releaseHome;
+const home = loadHome(assetUrl);
 let noticeKey = 'loading';
 let fullscreenUnavailable = false;
 function updateHostLanguage(next = locale) {
@@ -64,6 +70,12 @@ function forwardKey(event) {
 }
 canvas.addEventListener('keydown', forwardKey, { capture: true });
 canvas.addEventListener('keyup', forwardKey, { capture: true });
+// The drawing surface follows the graphics level chosen on the title screen:
+// the screen's own pixel ratio, reduced to fit the level's pixel budget.
+function resizeSurface() {
+  const { width, height } = canvas.getBoundingClientRect();
+  game.resizeDrawingSurfaceToCanvas(renderRatio(quality, width, height, window.devicePixelRatio || 1));
+}
 const game = new Rive({
   src: assetUrl('./game.riv'),
   canvas, artboard: 'main', stateMachines: 'Game', autoplay: false, autoBind: true,
@@ -72,9 +84,13 @@ const game = new Rive({
     try {
       releaseProgress = connectProgress(game.viewModelInstance);
       releaseLanguage = connectLanguage(game.viewModelInstance, globalThis, updateHostLanguage);
+      releaseQuality = connectQuality(game.viewModelInstance, globalThis, next => { quality = next; resizeSurface(); });
+      home.then(url => {
+        if (url) releaseHome = connectHome(game.viewModelInstance, url, target => location.assign(new URL(target, location.href)));
+      }).catch(error => console.error(error));
       gamepadProperty = game.viewModelInstance.string('browserGamepads');
       keyboardProperty = game.viewModelInstance.string('browserKeyboard');
-      game.resizeDrawingSurfaceToCanvas();
+      resizeSurface();
       game.play('Game');
       notice.hidden = true;
       touch.ready();
@@ -84,7 +100,7 @@ const game = new Rive({
   },
   onLoadError() { showNotice('loadError'); },
 });
-const observer = new ResizeObserver(() => game.resizeDrawingSurfaceToCanvas());
+const observer = new ResizeObserver(resizeSurface);
 observer.observe(canvas);
 fullscreen.addEventListener('click', async () => {
   try {
@@ -96,7 +112,7 @@ fullscreen.addEventListener('click', async () => {
 document.addEventListener('fullscreenchange', () => {
   fullscreenUnavailable = false;
   updateHostLanguage();
-  game.resizeDrawingSurfaceToCanvas();
+  resizeSurface();
 });
 function pollGamepads() {
   if (gamepadProperty) {
@@ -119,5 +135,5 @@ function pollGamepads() {
 requestAnimationFrame(pollGamepads);
 // Keep the save observer alive across the browser's back/forward cache.
 window.addEventListener('pagehide', event => {
-  if (!event.persisted) { releaseProgress?.(); releaseLanguage?.(); }
+  if (!event.persisted) { releaseProgress?.(); releaseLanguage?.(); releaseQuality?.(); releaseHome?.(); }
 });

@@ -225,6 +225,10 @@ type Pickup = { x: number, y: number, t: number, dead: boolean, kind: string? }
 type Game = {
     locale: L.Locale,
     languageHover: number,
+    quality: string, -- high, medium, low: the browser's drawing resolution
+    qualityHover: number,
+    homeShown: boolean, -- the host has somewhere above the game to go back to
+    homeHover: boolean,
     mode: string, -- title, tutorial, map, select, play, over, win
     progress: Progress.State,
     selectedLevel: number,
@@ -275,11 +279,18 @@ export type Main = {
     lastBrowserKeySeq: number,
     browserLanguage: Property<string>?,
     languageRevision: Property<number>?,
+    browserQuality: Property<string>?,
+    qualityRevision: Property<number>?,
+    homeAvailable: Property<boolean>?,
+    homeRevision: Property<number>?,
     browserDevices: {[number]:boolean},
     size: Vector,
     languagePointer: number,
     languageTarget: L.Locale?,
     languageKeyHeld: boolean,
+    qualityPointer: number,
+    qualityTarget: string?,
+    homePointer: number,
     menuPointer: number,
     menuTarget: string?,
 }
@@ -321,7 +332,7 @@ local function newGame(): Game
         table.insert(slots, newSlot(i))
     end
     return {
-        locale = 'en', languageHover = 0,
+        locale = 'en', languageHover = 0, quality = 'high', qualityHover = 0, homeShown = false, homeHover = false,
         progress = Progress.new(), selectedLevel = 1, runLevel = 1, mapCleared = 0,
         resetConfirm = false, resetYes = false,
         tutorialSeen = false, tutorialReturn = 'title', tutorial = nil, demo = nil, menuHover = '',
@@ -2575,6 +2586,44 @@ local function drawLanguage(g: Game)
     G.setLocale(g.locale)
 end
 
+-- Graphics quality sits under the language selector, in the strip right of the logo.
+local QUALITY_LEVELS = {
+    { key = 'high', name = 'HIGH', pixels = '4K' },
+    { key = 'medium', name = 'MEDIUM', pixels = '1080P' },
+    { key = 'low', name = 'LOW', pixels = '720P' },
+}
+local QUALITY_X, QUALITY_Y, QUALITY_W = 1160, 96, 100
+local QUALITY_CELL_Y, QUALITY_STEP, QUALITY_CELL_H = 28, 50, 46
+local function drawQuality(g: Game)
+    G.rrect(QUALITY_X, QUALITY_Y, QUALITY_W, QUALITY_CELL_Y + #QUALITY_LEVELS * QUALITY_STEP, 12, G.hex(0x1C1330), 2)
+    uiText(g, 'GRAPHICS', QUALITY_X + QUALITY_W / 2, QUALITY_Y + 9, 12, G.hex(0xCFC6D8), .5, G.hex(0x1C1330))
+    for i, level in QUALITY_LEVELS do
+        local y = QUALITY_Y + QUALITY_CELL_Y + (i-1)*QUALITY_STEP
+        local selected = g.quality == level.key
+        local background = if selected then G.hex(0xFFE14D) elseif g.qualityHover == i then G.hex(0x44315C) else G.hex(0x241A37)
+        G.rrect(QUALITY_X + 4, y, QUALITY_W - 8, QUALITY_CELL_H, 8, background)
+        local color = if selected then G.INK else G.WHITE
+        uiText(g, level.name, QUALITY_X + QUALITY_W / 2, y + 6, 16, color, .5, background)
+        G.text(level.pixels, QUALITY_X + QUALITY_W / 2, y + 28, 12, color, .5, background)
+    end
+end
+
+-- Back to the games homepage, top left under the legal text; only where the host
+-- has a page above the game to return to.
+local HOME_X, HOME_Y, HOME_H = 18, 70, 38
+local function homeWidth(g: Game): number
+    local size = if g.locale == 'en' then 14 else 16
+    return 46 + G.textWidth(tr(g, 'ALL GAMES'), size)
+end
+local function drawHome(g: Game)
+    if not g.homeShown then return end
+    local w = homeWidth(g)
+    local background = if g.homeHover then G.hex(0x44315C) else G.hex(0x241A37)
+    G.rrect(HOME_X, HOME_Y, w, HOME_H, 10, background, 2)
+    G.poly({ HOME_X + 25, HOME_Y + 11, HOME_X + 25, HOME_Y + HOME_H - 11, HOME_X + 12, HOME_Y + HOME_H / 2 }, G.WHITE)
+    uiText(g, 'ALL GAMES', HOME_X + 34, HOME_Y + 11, 14, G.WHITE, 0, background)
+end
+
 local function shadeBackdrop(alpha: number)
     -- Bake transparency into the paint: the browser renderer can ignore
     -- script opacity modulation and otherwise cover the entire city.
@@ -2626,6 +2675,8 @@ local function drawTitle(g: Game)
     uiText(g, L.format(g.locale, '1-4 PLAYERS   CONTROLLERS CONNECTED: {count}', { count = pads }), 18, 698, 10, G.hex(0x8D839E))
     uiText(g, 'UNOFFICIAL FAN GAME', W - 16, H - 22, 11, G.hex(0x8D839E), 1)
     drawLanguage(g)
+    drawQuality(g)
+    drawHome(g)
 end
 
 local function statBar(g: Game, x: number, y: number, label: string, v: number, c: Color)
@@ -2825,6 +2876,13 @@ end
 
 -- Layout protocol ----------------------------------------------------------------------------------
 
+local function qualityIndex(value: string): number?
+    for i, level in QUALITY_LEVELS do
+        if level.key == value then return i end
+    end
+    return nil
+end
+
 function init(self: Main, context: Context): boolean
     self.progressBridge=Progress.bridge(context)
     local vm=context:viewModel()
@@ -2834,6 +2892,11 @@ function init(self: Main, context: Context): boolean
         self.browserLanguage=vm:getString('browserLanguage')
         self.languageRevision=vm:getNumber('languageRevision')
         if self.browserLanguage and L.valid(self.browserLanguage.value) then self.g.locale=self.browserLanguage.value :: L.Locale end
+        self.browserQuality=vm:getString('browserQuality')
+        self.qualityRevision=vm:getNumber('qualityRevision')
+        if self.browserQuality and qualityIndex(self.browserQuality.value) then self.g.quality=self.browserQuality.value end
+        self.homeAvailable=vm:getBoolean('homeAvailable')
+        self.homeRevision=vm:getNumber('homeRevision')
     end
     return true
 end
@@ -2847,6 +2910,11 @@ function advance(self: Main, seconds: number): boolean
         local value=self.browserLanguage.value
         if L.valid(value) then self.g.locale=value :: L.Locale end
     end
+    if self.browserQuality then
+        local value=self.browserQuality.value
+        if qualityIndex(value) then self.g.quality=value end
+    end
+    self.g.homeShown = self.homeAvailable ~= nil and self.homeAvailable.value == true
     local keys=self.browserKeyboard
     if keys and keys.value~='' then
         local events,newest=BrowserInput.decodeKeyboard(keys.value,self.lastBrowserKeySeq)
@@ -2918,6 +2986,30 @@ local function chooseLanguage(self: Main, locale: L.Locale)
     if self.languageRevision then self.languageRevision.value+=1 end
 end
 
+local function qualityAt(self: Main, position: Vector): string?
+    if self.g.mode ~= 'title' then return nil end
+    local point = screenPosition(self, position)
+    local x, y = point.x, point.y
+    if x < QUALITY_X + 4 or x > QUALITY_X + QUALITY_W - 4 then return nil end
+    for i, level in QUALITY_LEVELS do
+        local top = QUALITY_Y + QUALITY_CELL_Y + (i-1)*QUALITY_STEP
+        if y >= top and y <= top + QUALITY_CELL_H then return level.key end
+    end
+    return nil
+end
+
+local function chooseQuality(self: Main, quality: string)
+    self.g.quality=quality
+    if self.browserQuality then self.browserQuality.value=quality end
+    if self.qualityRevision then self.qualityRevision.value+=1 end
+end
+
+local function homeAt(self: Main, position: Vector): boolean
+    if self.g.mode ~= 'title' or not self.g.homeShown then return false end
+    local point = screenPosition(self, position)
+    return point.x >= HOME_X and point.x <= HOME_X + homeWidth(self.g) and point.y >= HOME_Y and point.y <= HOME_Y + HOME_H
+end
+
 local function menuAt(self: Main, position: Vector): string?
     local p = screenPosition(self, position)
     return LevelMap.actionAt(self.g.mode,p.x,p.y,self.g.resetConfirm) or Tutorial.actionAt(self.g.mode, p.x, p.y)
@@ -2925,9 +3017,17 @@ end
 
 function pointerDown(self: Main, e: PointerEvent)
     local target = languageAt(self, e.position)
+    local quality = qualityAt(self, e.position)
     if target and self.languagePointer == -1 then
         self.languagePointer = e.id
         self.languageTarget = target
+        e:hit()
+    elseif quality and self.qualityPointer == -1 then
+        self.qualityPointer = e.id
+        self.qualityTarget = quality
+        e:hit()
+    elseif homeAt(self, e.position) and self.homePointer == -1 then
+        self.homePointer = e.id
         e:hit()
     else
         local action = menuAt(self, e.position)
@@ -2942,6 +3042,12 @@ function pointerMove(self: Main, e: PointerEvent)
     local target = languageAt(self, e.position)
     self.g.languageHover = if target == 'en' then 1 elseif target == 'zh-TW' then 2 elseif target == 'ja' then 3 else 0
     if target or self.languagePointer == e.id then e:hit() end
+    local quality = qualityAt(self, e.position)
+    self.g.qualityHover = if quality then qualityIndex(quality) :: number else 0
+    if quality or self.qualityPointer == e.id then e:hit() end
+    local home = homeAt(self, e.position)
+    self.g.homeHover = home
+    if home or self.homePointer == e.id then e:hit() end
     local action = menuAt(self, e.position)
     self.g.menuHover = action or ''
     if action or self.menuPointer == e.id then e:hit() end
@@ -2954,6 +3060,18 @@ function pointerUp(self: Main, e: PointerEvent)
         self.menuPointer, self.menuTarget = -1, nil
         e:hit()
     end
+    if self.homePointer == e.id then
+        if homeAt(self, e.position) and self.homeRevision then self.homeRevision.value += 1 end
+        self.homePointer = -1
+        e:hit()
+    end
+    if self.qualityPointer == e.id then
+        local quality = qualityAt(self, e.position)
+        if quality and quality == self.qualityTarget then chooseQuality(self, quality) end
+        self.qualityPointer = -1
+        self.qualityTarget = nil
+        e:hit()
+    end
     if self.languagePointer ~= e.id then return end
     local target = languageAt(self, e.position)
     if target and target == self.languageTarget then chooseLanguage(self,target) end
@@ -2964,6 +3082,14 @@ end
 
 function pointerExit(self: Main, e: PointerEvent)
     self.g.languageHover = 0
+    self.g.qualityHover = 0
+    self.g.homeHover = false
+    if self.homePointer == e.id then self.homePointer = -1; e:hit() end
+    if self.qualityPointer == e.id then
+        self.qualityPointer = -1
+        self.qualityTarget = nil
+        e:hit()
+    end
     self.g.menuHover = ''
     if self.menuPointer == e.id then self.menuPointer, self.menuTarget = -1, nil; e:hit() end
     if self.languagePointer == e.id then
@@ -3079,8 +3205,10 @@ local function create(context: Context): Layout<Main>
         browserGamepads = nil, lastBrowserGamepads = '', browserDevices = {},
         browserKeyboard = nil, lastBrowserKeySeq = 0,
         browserLanguage = nil, languageRevision = nil,
+        browserQuality = nil, qualityRevision = nil, homeAvailable = nil, homeRevision = nil,
         size = Vector.xy(0, 0),
         languagePointer = -1, languageTarget = nil, languageKeyHeld = false,
+        qualityPointer = -1, qualityTarget = nil, homePointer = -1,
         menuPointer = -1, menuTarget = nil,
         init = init,
         resize = resize,

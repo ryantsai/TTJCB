@@ -37,6 +37,10 @@
         <ViewModelPropertyString name="browserKeyboard" id="0:76"/>
         <ViewModelPropertyString name="browserLanguage" id="0:78"/>
         <ViewModelPropertyNumber name="languageRevision" id="0:82"/>
+        <ViewModelPropertyString name="browserQuality" id="0:160"/>
+        <ViewModelPropertyNumber name="qualityRevision" id="0:161"/>
+        <ViewModelPropertyBoolean name="homeAvailable" id="0:164"/>
+        <ViewModelPropertyNumber name="homeRevision" id="0:165"/>
         <ViewModelInstance name="Default" id="0:63" exports="true">
             <ViewModelInstanceNumber viewModelPropertyId="0:66" propertyValue="0" id="0:70"/>
             <ViewModelInstanceBoolean viewModelPropertyId="0:67" propertyValue="false" id="0:71"/>
@@ -46,6 +50,10 @@
             <ViewModelInstanceString viewModelPropertyId="0:76" propertyValue="" id="0:77"/>
             <ViewModelInstanceString viewModelPropertyId="0:78" propertyValue="en" id="0:79"/>
             <ViewModelInstanceNumber viewModelPropertyId="0:82" propertyValue="0" id="0:83"/>
+            <ViewModelInstanceString viewModelPropertyId="0:160" propertyValue="high" id="0:162"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:161" propertyValue="0" id="0:163"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:164" propertyValue="false" id="0:166"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:165" propertyValue="0" id="0:167"/>
         </ViewModelInstance>
     </ViewModel>
 

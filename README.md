@@ -231,6 +231,34 @@ runtimes. `npm run build:host` checks the host bundle without signing and omits
 the playable `.riv` file. See [the progress implementation notes](docs/level-progress.md)
 for the save contract and validation commands.
 
+## Graphics quality
+
+The Rive renderer is fill-rate bound, so on a 4K screen with an integrated GPU
+the frame rate depends on how many pixels it draws. The **Graphics** panel under
+the language selector on the title screen picks the drawing resolution: **High**
+(up to 4K, 3840 × 2160), **Medium** (up to 1080p) or **Low** (up to 720p). Each is a pixel budget, so
+other window shapes keep their aspect ratio, and a screen below the budget is
+drawn at its own resolution. CSS stretches the canvas to the window, and the
+layout does not change.
+
+On first launch the level comes from the GPU name and whether the device is
+touch-first: discrete NVIDIA/AMD/Arc and Apple GPUs get High; integrated GPUs,
+touch devices and anything unidentified get Medium; software rendering gets
+Low. The host hands the level to the game through the `browserQuality` and
+`qualityRevision` view-model properties, like the language. Only a player's own
+click is saved (`localStorage`, `ttgo.quality.v1`), so the detected level
+follows the device until one is picked. The host logic and its tests are in
+`web/quality.mjs` and `web/quality.test.mjs`; the panel is `drawQuality` in
+`game.luau`.
+
+## Back to a games homepage
+
+When a page above the game exists, the title screen shows an **All games** button
+under the legal text (top left). The host page opts in with a `home.json` beside
+`index.html`, `{"url": "../"}`; without one, as on this project's own GitHub Pages
+site, there is no button. The host sets `homeAvailable` and the game bumps
+`homeRevision` on a click, which navigates to the address (`web/home-link.mjs`).
+
 ## Files
 
 English, **繁體中文（台灣）**, and **日本語** are available from the main menu's top-right
@@ -253,7 +281,7 @@ source research and font regeneration details are in
 | `progress.luau` | sequential unlock rules and the Rive view-model save bridge |
 | `progress_test.luau` | stage selection, completion, replay, reset, hydration and browser controller regressions |
 | `browser_input.luau` | standard browser gamepad snapshots routed to the native input handler |
-| `web/` | signed browser release host, localStorage adapter, save tests and build script |
+| `web/` | signed browser release host, localStorage adapters (saves, language, graphics quality), tests and build script |
 | `campaign.luau` | enemy stats, stage identities, and all thirty-two encounter rosters |
 | `campaign_test.luau` | campaign progression, new enemy behavior and co-op regressions |
 | `game.luau` | the game: input, modes, combat, AI, waves, camera, HUD |
