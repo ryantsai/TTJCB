@@ -2,6 +2,8 @@ export const hostStrings = {
   en: {
     touch: { controls: 'Touch controls', move: 'Move', back: 'Back', start: 'Start', skill1: 'Skill 1', skill2: 'Skill 2', super: 'Super', attack: 'Attack', jump: 'Jump' },
     title: 'Teen Titans: Jump City Brawl', loading: 'Loading…',
+    loadingGame: 'Downloading the game…', loadingEngine: 'Starting the game engine…',
+    loadingSave: 'Loading your progress…', loadingFrame: 'Preparing the title screen…', ready: 'Ready!', retry: 'Reload',
     loadError: 'The game could not load. Please try again.',
     progressError: 'Unable to load game progress. Please reload and try again.',
     enter: 'Enter fullscreen', exit: 'Exit fullscreen', fullscreen: 'Fullscreen',
@@ -10,6 +12,8 @@ export const hostStrings = {
   ja: {
     touch: { controls: 'タッチ操作', move: '移動', back: '戻る', start: '開始/停止', skill1: 'スキル1', skill2: 'スキル2', super: '必殺技', attack: '攻撃', jump: 'ジャンプ' },
     title: 'ティーン・タイタンズ：ジャンプシティ大乱闘', loading: '読み込み中…',
+    loadingGame: 'ゲームをダウンロード中…', loadingEngine: 'ゲームエンジンを起動中…',
+    loadingSave: '進行状況を読み込み中…', loadingFrame: 'タイトル画面を準備中…', ready: '準備完了！', retry: '再読み込み',
     loadError: 'ゲームを読み込めませんでした。もう一度お試しください。',
     progressError: '進行状況を読み込めませんでした。再読み込みしてお試しください。',
     enter: '全画面表示にする', exit: '全画面表示を終了', fullscreen: '全画面表示',
@@ -18,6 +22,8 @@ export const hostStrings = {
   'zh-TW': {
     touch: { controls: '觸控操作', move: '移動', back: '返回', start: '開始/暫停', skill1: '招式1', skill2: '招式2', super: '絕招', attack: '攻擊', jump: '跳躍' },
     title: '少年悍將：雀躍城大亂鬥', loading: '載入中……',
+    loadingGame: '下載遊戲內容中……', loadingEngine: '啟動遊戲引擎中……',
+    loadingSave: '讀取遊戲進度中……', loadingFrame: '準備開始畫面中……', ready: '準備好了！', retry: '重新整理',
     loadError: '遊戲無法載入，請再試一次。',
     progressError: '無法載入遊戲進度，請重新整理後再試一次。',
     enter: '進入全螢幕', exit: '離開全螢幕', fullscreen: '全螢幕',

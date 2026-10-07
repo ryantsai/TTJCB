@@ -7,12 +7,19 @@ import { connectTouchGamepad, TOUCH_PAD_ID } from './touch-gamepad.mjs';
 import { hostStrings } from './host-strings.mjs';
 import { connectQuality, renderRatio } from './quality.mjs';
 import { connectHome, loadHome } from './home-link.mjs';
+import { loadGameBuffer } from './loading-progress.mjs';
 
 const releaseVersion = new URL(import.meta.url).searchParams.get('v');
 const assetUrl = name => new URL(`${name}${releaseVersion ? `?v=${releaseVersion}` : ''}`, location.href).href;
 RuntimeLoader.setWasmUrl(assetUrl('./rive.wasm'));
 const canvas = document.querySelector('#game');
 const notice = document.querySelector('#notice');
+const noticeText = document.querySelector('#notice-text');
+const loadingBar = document.querySelector('#loading-progress');
+const loadingValue = document.querySelector('#loading-value');
+const retry = document.querySelector('#loading-retry');
+const paint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+retry.addEventListener('click', () => location.reload());
 const fullscreen = document.querySelector('#fullscreen');
 const touch = connectTouchGamepad(document.querySelector('#touch-gamepad'), canvas);
 let locale = initialLanguage();
@@ -28,7 +35,10 @@ function updateHostLanguage(next = locale) {
   document.documentElement.lang = locale;
   document.title = strings.title;
   canvas.setAttribute('aria-label', strings.title);
-  notice.textContent = strings[noticeKey];
+  noticeText.textContent = strings[noticeKey];
+  document.querySelector('#loading-title').textContent = strings.title;
+  loadingBar.setAttribute('aria-label', strings.loading);
+  retry.textContent = strings.retry;
   for (const element of document.querySelectorAll('[data-touch-label]')) {
     const label = strings.touch[element.dataset.touchLabel];
     element.setAttribute('aria-label', label);
@@ -40,7 +50,19 @@ function updateHostLanguage(next = locale) {
   fullscreen.setAttribute('aria-pressed', String(active));
   fullscreen.title = fullscreenUnavailable ? strings.unavailable : active ? strings.exit : strings.fullscreen;
 }
-function showNotice(key) { noticeKey = key; notice.hidden = false; updateHostLanguage(); }
+function showNotice(key) {
+  noticeKey = key;
+  notice.hidden = false;
+  notice.setAttribute('aria-busy', 'false');
+  retry.hidden = false;
+  updateHostLanguage();
+}
+function loading(percent, key) {
+  if (key) noticeKey = key;
+  loadingBar.value = Math.max(loadingBar.value, percent);
+  loadingValue.textContent = `${Math.round(loadingBar.value)}%`;
+  updateHostLanguage();
+}
 updateHostLanguage();
 let releaseProgress;
 let releaseLanguage;
@@ -74,32 +96,48 @@ canvas.addEventListener('keyup', forwardKey, { capture: true });
 // the screen's own pixel ratio, reduced to fit the level's pixel budget.
 function resizeSurface() {
   const { width, height } = canvas.getBoundingClientRect();
-  game.resizeDrawingSurfaceToCanvas(renderRatio(quality, width, height, window.devicePixelRatio || 1));
+  game?.resizeDrawingSurfaceToCanvas(renderRatio(quality, width, height, window.devicePixelRatio || 1));
 }
-const game = new Rive({
-  src: assetUrl('./game.riv'),
-  canvas, artboard: 'main', stateMachines: 'Game', autoplay: false, autoBind: true,
-  layout: new Layout({ fit: Fit.Layout, alignment: Alignment.Center }),
-  onLoad() {
-    try {
-      releaseProgress = connectProgress(game.viewModelInstance);
-      releaseLanguage = connectLanguage(game.viewModelInstance, globalThis, updateHostLanguage);
-      releaseQuality = connectQuality(game.viewModelInstance, globalThis, next => { quality = next; resizeSurface(); });
-      home.then(url => {
-        if (url) releaseHome = connectHome(game.viewModelInstance, url, target => location.assign(new URL(target, location.href)));
-      }).catch(error => console.error(error));
-      gamepadProperty = game.viewModelInstance.string('browserGamepads');
-      keyboardProperty = game.viewModelInstance.string('browserKeyboard');
-      resizeSurface();
-      game.play('Game');
-      notice.hidden = true;
-      touch.ready();
-      fullscreen.hidden = !document.fullscreenEnabled;
-      canvas.focus();
-    } catch (error) { console.error(error); showNotice('progressError'); }
-  },
-  onLoadError() { showNotice('loadError'); },
-});
+let game;
+async function boot() {
+  loading(15, 'loadingGame');
+  const buffer = await loadGameBuffer(assetUrl('./game.riv'), fraction => loading(15 + fraction * 55));
+  loading(75, 'loadingEngine');
+  await paint();
+  await RuntimeLoader.awaitInstance();
+  game = new Rive({
+    buffer,
+    canvas, artboard: 'main', stateMachines: 'Game', autoplay: false, autoBind: true,
+    layout: new Layout({ fit: Fit.Layout, alignment: Alignment.Center }),
+    async onLoad() {
+      try {
+        loading(85, 'loadingSave');
+        await paint();
+        releaseProgress = connectProgress(game.viewModelInstance);
+        releaseLanguage = connectLanguage(game.viewModelInstance, globalThis, updateHostLanguage);
+        releaseQuality = connectQuality(game.viewModelInstance, globalThis, next => { quality = next; resizeSurface(); });
+        home.then(url => {
+          if (url) releaseHome = connectHome(game.viewModelInstance, url, target => location.assign(new URL(target, location.href)));
+        }).catch(error => console.error(error));
+        gamepadProperty = game.viewModelInstance.string('browserGamepads');
+        keyboardProperty = game.viewModelInstance.string('browserKeyboard');
+        resizeSurface();
+        game.play('Game');
+        loading(95, 'loadingFrame');
+        await paint();
+        loading(100, 'ready');
+        await paint();
+        notice.hidden = true;
+        notice.setAttribute('aria-busy', 'false');
+        touch.ready();
+        fullscreen.hidden = !document.fullscreenEnabled;
+        canvas.focus();
+      } catch (error) { console.error(error); showNotice('progressError'); }
+    },
+    onLoadError() { showNotice('loadError'); },
+  });
+}
+boot().catch(error => { console.error(error); showNotice('loadError'); });
 const observer = new ResizeObserver(resizeSurface);
 observer.observe(canvas);
 fullscreen.addEventListener('click', async () => {

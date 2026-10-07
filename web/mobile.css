@@ -1,0 +1,19 @@
+/* No browser double-tap/hold/pinch zoom, including scrollable menus. Zero
+   specificity keeps each game's canvas/joystick touch-action:none authoritative. */
+:where(html.mobile-gestures, html.mobile-gestures *) { touch-action: pan-x pan-y; }
+html.mobile-gestures { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html.mobile-gestures, html.mobile-gestures * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Names, room codes and chat remain editable, including copy/paste. A 16px
+   minimum prevents iPhone Safari's automatic zoom when focusing a small field. */
+html.mobile-gestures :is(input, textarea, [contenteditable="true"]) {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+html.mobile-gestures :is(input, textarea, select, [contenteditable="true"]) { font-size: max(16px, 1em) !important; }

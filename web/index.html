@@ -1,7 +1,8 @@
 <!doctype html>
 <html lang="en">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
+<!-- MOBILE_GESTURES -->
 <title>Teen Titans: Jump City Brawl</title>
 <style>
 @font-face{font-family:"Noto Sans TC";src:url("./noto-sans-tc.woff2") format("woff2");font-weight:700;font-display:swap}
@@ -17,8 +18,19 @@ canvas:focus-visible,#fullscreen:focus-visible{outline:2px solid #7fd8ff;outline
 #fullscreen .exit-icon{display:none}
 #fullscreen[aria-pressed="true"] .enter-icon{display:none}
 #fullscreen[aria-pressed="true"] .exit-icon{display:block}
-#notice{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:32px;background:#140c24}
+#notice{position:absolute;z-index:4;inset:0;display:grid;place-content:center;justify-items:center;text-align:center;padding:24px;background:radial-gradient(ellipse at 50% 40%,#35254d,#140c24 70%)}
 #notice[hidden]{display:none}
+#loading-title{max-width:620px;margin:0 0 16px;font-size:clamp(24px,5vw,40px);line-height:1.4}
+#notice-text{line-height:1.6}
+.loading-meter{display:flex;align-items:center;gap:12px;width:min(320px,100%);margin-top:16px}
+#loading-progress{appearance:none;flex:1;min-width:0;width:100%;height:10px;border:0;border-radius:999px;overflow:hidden;background:#ffffff26;color:#7fd8ff}
+#loading-progress::-webkit-progress-bar{background:#ffffff26;border-radius:999px}
+#loading-progress::-webkit-progress-value{background:#7fd8ff;border-radius:999px}
+#loading-progress::-moz-progress-bar{background:#7fd8ff;border-radius:999px}
+#loading-value{min-width:3.5em;text-align:right;font:600 13px system-ui;font-variant-numeric:tabular-nums}
+#loading-retry{margin-top:24px;padding:12px 24px;border:1px solid #7fd8ff;border-radius:12px;background:#35254d;color:inherit;font:inherit;cursor:pointer}
+#loading-retry[hidden]{display:none}
+#loading-retry:focus-visible{outline:2px solid #fff;outline-offset:3px}
 #touch-gamepad{position:fixed;z-index:3;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none}
 #touch-gamepad[hidden]{display:none}
 #touch-gamepad button,.touch-stick{pointer-events:auto;touch-action:none;-webkit-touch-callout:none}
@@ -56,6 +68,20 @@ canvas:focus-visible,#fullscreen:focus-visible{outline:2px solid #7fd8ff;outline
     <button type="button" data-bit="0" data-touch-label="jump" aria-pressed="false">A<small>Jump</small></button>
   </div>
 </div>
-<div id="notice" role="status">Loading…</div>
-<script type="module" src="./game.js"></script>
+<div id="notice" aria-busy="true">
+  <h1 id="loading-title">Teen Titans: Jump City Brawl</h1>
+  <p id="notice-text" role="status">Loading…</p>
+  <div class="loading-meter"><progress id="loading-progress" max="100" value="0" aria-label="Loading…"></progress><span id="loading-value" aria-hidden="true">0%</span></div>
+  <button id="loading-retry" type="button" hidden>Reload</button>
+</div>
+<script type="module">
+  import('./game.js').catch(error => {
+    console.error(error);
+    document.querySelector('#notice-text').textContent = 'The game could not load. Please reload and try again.';
+    document.querySelector('#notice').setAttribute('aria-busy', 'false');
+    const retry = document.querySelector('#loading-retry');
+    retry.hidden = false;
+    retry.onclick = () => location.reload();
+  });
+</script>
 </html>

@@ -29,13 +29,20 @@ await build({ entryPoints: [path.join(web, 'game.mjs')], bundle: true, minify: t
   format: 'esm', target: 'es2022', outfile: path.join(dist, 'game.js') });
 const fontPath = path.join(root, 'assets/fonts/noto-sans-tc-700.woff2');
 const jpFontPath = path.join(root, 'assets/fonts/noto-sans-jp-700.woff2');
+// Inline the early gesture guard so every host (including the copied release)
+// protects its loading screen without requiring another deployed asset.
+const mobileJS = await readFile(path.join(web, 'mobile.js'), 'utf8');
+const mobileCSS = await readFile(path.join(web, 'mobile.css'), 'utf8');
 const releaseHash = createHash('sha256');
+releaseHash.update(mobileJS);
+releaseHash.update(mobileCSS);
 releaseHash.update(await readFile(jpFontPath));
 releaseHash.update(await readFile(path.join(dist, 'game.js')));
 releaseHash.update(await readFile(fontPath));
 if (signedPath) releaseHash.update(await readFile(signedPath));
 const releaseVersion = releaseHash.digest('hex').slice(0, 12);
 const index = (await readFile(path.join(web, 'index.html'), 'utf8'))
+  .replace('<!-- MOBILE_GESTURES -->', `<style>${mobileCSS}</style>\n<script>${mobileJS}</script>`)
   .replace('./game.js', `./game.js?v=${releaseVersion}`)
   .replace('./noto-sans-jp.woff2', `./noto-sans-jp.woff2?v=${releaseVersion}`)
   .replace('./noto-sans-tc.woff2', `./noto-sans-tc.woff2?v=${releaseVersion}`);
